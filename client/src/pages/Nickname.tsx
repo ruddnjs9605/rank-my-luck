@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { setNickname } from "../lib/api";
+import { setNicknameApi, claimReferral } from "../lib/api";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 
@@ -11,14 +11,33 @@ export default function Nickname(){
   const submit = async () => {
     if(!nick.trim()) return;
     setLoading(true);
-    const res = await setNickname(nick.trim());
+    const res = await setNicknameApi(nick.trim());
     setLoading(false);
+
     if (res?.error === "DUPLICATE_NICKNAME") {
       alert("이미 사용중인 닉네임이에요. 다른 이름을 시도해 주세요.");
       return;
     }
+
+    // 추천(ref) 보상 청구
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const ref = q.get("ref") || localStorage.getItem("ref");
+      if (ref) {
+        await claimReferral(ref);
+        localStorage.removeItem("ref");
+      }
+    } catch {}
+
     nav("/play");
   };
+
+  // 처음 들어올 때 ref 파라미터 저장(로그인/닉설 넘어가며 유지)
+  React.useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const ref = q.get("ref");
+    if (ref) localStorage.setItem("ref", ref);
+  }, []);
 
   return (
     <>

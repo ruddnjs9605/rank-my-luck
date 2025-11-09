@@ -24,3 +24,25 @@ CREATE TABLE IF NOT EXISTS records (
 -- 성능을 위한 인덱스
 CREATE INDEX IF NOT EXISTS idx_users_best_score ON users(best_score ASC);
 CREATE INDEX IF NOT EXISTS idx_records_user_time ON records(user_id, timestamp DESC);
+
+
+-- 1) 사용자 지갑
+ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0;
+
+-- 2) 추천 보상 (한 사용자당 1회만 보상)
+CREATE TABLE IF NOT EXISTS referral_rewards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  referrer_user_id TEXT NOT NULL,
+  referred_user_id TEXT NOT NULL UNIQUE,
+  amount INTEGER NOT NULL DEFAULT 50,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3) 광고 보상 지급 로그 (중복 지급 방지용 키)
+CREATE TABLE IF NOT EXISTS ad_rewards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
