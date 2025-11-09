@@ -19,14 +19,16 @@ const auth = async (req: any, res: any, next: any) => {
 
 /** 개발용 토큰 발급 (실서비스는 OAuth 콜백 처리) */
 r.get("/auth/toss/callback", async (req, res) => {
-  const qUserId = String(req.query.user_id || "");
-  if (!qUserId) return res.status(400).json({ error: "user_id required (dev mode)" });
-
-  await run(`INSERT OR IGNORE INTO users(user_id) VALUES (?)`, [qUserId]);
-
-  const token = jwt.sign({ user_id: qUserId }, process.env.JWT_SECRET!, { expiresIn: "30d" });
-  res.json({ token });
-});
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: "SERVER_MISCONFIG:JWT_SECRET" });
+    }
+    const qUserId = String(req.query.user_id || "");
+    if (!qUserId) return res.status(400).json({ error: "user_id required (dev mode)" });
+  
+    await run(`INSERT OR IGNORE INTO users(user_id) VALUES (?)`, [qUserId]);
+    const token = jwt.sign({ user_id: qUserId }, process.env.JWT_SECRET, { expiresIn: "30d" });
+    res.json({ token });
+  });
 
 /** 내 프로필 */
 r.get("/api/me", auth, async (req: any, res) => {

@@ -20,3 +20,8 @@ const PORT = Number(process.env.PORT || 8080);
 app.listen(PORT, () => {
   console.log(`API on http://localhost:${PORT}`);
 });
+
+app.use((err: any, _req: any, res: any, _next: any) => {
+    console.error(err);
+    res.status(500).json({ error: "INTERNAL", message: err?.message });
+  });
