@@ -1,5 +1,7 @@
 node_modules
-.env
 dist
+.env
+client/.env
+server/.env
 .sqlite/
 db/*.sqlite

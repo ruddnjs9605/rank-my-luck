@@ -1,0 +1,126 @@
+/* 기본 토큰 */
+:root{
+    --bg:#ffffff;
+    --text:#0b0b0c;
+    --muted:#6b7280;
+    --primary:#3182f6;    /* toss 블루 톤 느낌 */
+    --primary-press:#1f6fe8;
+    --surface:#f7f8fa;
+    --border:#eceff3;
+    --success:#16a34a;
+    --danger:#ef4444;
+    --radius:16px;
+  }
+  
+  /* 모바일 기본 */
+  *{box-sizing:border-box}
+  html,body,#root{height:100%}
+  body{
+    margin:0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif;
+    background:var(--surface);
+    color:var(--text);
+  }
+  
+  /* 페이지 컨테이너 */
+  .page{
+    max-width: 480px;
+    margin: 0 auto;
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+  }
+  
+  /* 상단바 */
+  .topbar{
+    position:sticky; top:0;
+    background:var(--bg);
+    border-bottom:1px solid var(--border);
+    padding:14px 16px;
+    display:flex; justify-content:space-between; align-items:center;
+    z-index:10;
+  }
+  .topbar-title{ font-size:18px; font-weight:700; }
+  .topbar-nav{ display:flex; gap:12px; }
+  .topbar-link{ color:var(--muted); text-decoration:none; font-weight:600; }
+  .topbar-link.active{ color:var(--primary); }
+  
+  /* 섹션 & 카드 */
+  .section{ padding:16px; }
+  .card{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px;
+  }
+  
+  /* 입력 & 버튼 */
+  .input{
+    width:100%; height:44px; border-radius:12px;
+    border:1px solid var(--border);
+    padding:0 12px; font-size:16px; background:#fff;
+  }
+  .btn{
+    height:48px; border:none; border-radius:12px;
+    font-weight:700; font-size:16px;
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:0 16px; cursor:pointer;
+  }
+  .btn-primary{ background:var(--primary); color:#fff; }
+  .btn-primary:active{ background:var(--primary-press); }
+  .btn-outline{ background:#fff; color:var(--text); border:1px solid var(--border); }
+  .btn-ghost{ background:transparent; color:var(--primary); }
+  
+  /* 고정 CTA 바 */
+  .cta{
+    position:sticky; bottom:0;
+    background:var(--bg);
+    border-top:1px solid var(--border);
+    padding:12px 16px;
+  }
+  
+  /* 게이지 & 수치 */
+  .gauge-wrap{ padding:12px 12px 4px; }
+  .gauge-label{ font-size:13px; color:var(--muted); margin-bottom:6px; }
+  .range{ width:100%; }
+  .stat{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 0; border-bottom:1px dashed var(--border);
+  }
+  .stat:last-child{ border-bottom:none; }
+  .stat .label{ font-size:13px; color:var(--muted); }
+  .stat .value{ font-weight:800; }
+  
+  /* 토스트 */
+  .toast{
+    position:fixed; left:50%; bottom:72px; transform:translateX(-50%);
+    background:#111; color:#fff; padding:10px 14px; border-radius:12px;
+    font-size:14px; opacity:.96;
+  }
+  
+
+/* Coin flip (3D front/back images) */
+.coin-stage {
+    display:flex; align-items:center; justify-content:center;
+    height: 220px; margin-top: 8px;
+    perspective: 800px; /* 3D 원근 */
+  }
+  .coin3d {
+    width: 140px; height: 140px; position: relative;
+    transform-style: preserve-3d;
+    transition: transform 900ms cubic-bezier(.36,.07,.19,.97);
+  }
+  .coin3d.spin {
+    /* 회전 중이라는 표시용 클래스 (동작은 transform 상태값으로 제어) */
+  }
+  .coin-face {
+    position:absolute; inset:0;
+    backface-visibility: hidden;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+  .coin-face img {
+    width:100%; height:100%; object-fit: contain;
+  }
+  .coin-face.back { transform: rotateY(180deg); }
+  
