@@ -1,57 +1,71 @@
-import React, { useState } from "react";
-import { devLogin, setToken, me } from "../lib/api";
-import { useNavigate } from "react-router-dom";
-import Button from "../components/Button";
+import React, { useState } from 'react';
+import { appLogin } from '@apps-in-toss/web-framework';
+import { api } from '../lib/api';
 
 export default function Login() {
-  const [userId, setUserId] = useState("dev-user-1");
-  const [loading, setLoading] = useState(false);
-  const nav = useNavigate();
+  const [log, setLog] = useState<string>('');
 
-  const onDevLogin = async () => {
+  const handleTossLogin = async () => {
     try {
-      setLoading(true);
-      // 1) 토큰 발급
-      const r = await devLogin(userId.trim());
-      if (!r?.token) {
-        alert("토큰 발급 실패");
-        setLoading(false);
-        return;
+      setLog('토스 로그인 준비...');
+      const { authorizationCode, referrer } = await appLogin();
+      setLog(`인가코드 수신: ${authorizationCode} (referrer=${referrer})`);
+
+      const ex = await api.post('/toss/exchange', { code: authorizationCode });
+      const accessToken = ex.token.accessToken;
+
+      const me = await api.post('/toss/me', { accessToken });
+      setLog(`유저 조회 완료: ${JSON.stringify(me.user)}`);
+
+      if (!me.user?.nickname) {
+        setLog((p: string) => p + '\n닉네임이 없어 닉네임 설정 화면으로 이동하세요.');
+        // 닉네임 입력 UI는 여기서 이어서 구현
+      } else {
+        setLog((p: string) => p + '\n로그인 완료! 플레이 화면으로 이동 준비.');
       }
-      // 2) 저장
-      setToken(r.token);
-      // 3) 프로필 확인 후 라우팅
-      const profile = await me();
-      setLoading(false);
-      if (!profile?.nickname) nav("/nickname" + window.location.search);
-      else nav("/play" + window.location.search);
-    } catch (e) {
-      setLoading(false);
-      alert("개발 로그인 실패: 네트워크/프록시 설정을 확인해주세요.");
+    } catch (e: any) {
+      setLog(`로그인 실패: ${e?.message || e}`);
+    }
+  };
+
+  const [nickname, setNickname] = useState('');
+  const [tossUserKey, setTossUserKey] = useState(''); // 테스트 시 수동 입력 가능(실전은 me 결과에서 사용)
+
+  const createNickname = async () => {
+    try {
+      const resp = await api.post('/auth/nickname', { nickname, tossUserKey: tossUserKey || undefined });
+      setLog(`닉네임 생성 완료: ${JSON.stringify(resp.user)}`);
+    } catch (e: any) {
+      setLog(`닉네임 생성 실패: ${e?.message || e}`);
     }
   };
 
   return (
-    <>
-      <div className="section">
-        <div className="card">
-          <div style={{fontWeight:700, fontSize:16, marginBottom:8}}>로그인</div>
-          <div style={{color:"#667085", fontSize:13, marginBottom:12}}>
-            토스 인앱 OAuth 연동 전 개발용 로그인입니다.
-          </div>
-          <input
-            className="input"
-            value={userId}
-            onChange={(e)=>setUserId(e.target.value)}
-            placeholder="dev-user-1"
-          />
-        </div>
+    <div style={{ display: 'grid', gap: 12 }}>
+      <button onClick={handleTossLogin} style={{ padding: 12, fontWeight: 700 }}>
+        토스 로그인
+      </button>
+
+      <div style={{ borderTop: '1px solid #eee', paddingTop: 12 }}>
+        <h3>닉네임 설정 (토스 최초 로그인 시)</h3>
+        <input
+          placeholder="원하는 닉네임"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+          style={{ padding: 8 }}
+        />
+        <input
+          placeholder="(테스트용) tossUserKey"
+          value={tossUserKey}
+          onChange={(e) => setTossUserKey(e.target.value)}
+          style={{ padding: 8 }}
+        />
+        <button onClick={createNickname} style={{ padding: 10 }}>닉네임 생성</button>
       </div>
-      <div className="cta">
-        <Button full onClick={onDevLogin} disabled={loading || !userId.trim()}>
-          {loading ? "로그인 중..." : "개발 로그인"}
-        </Button>
-      </div>
-    </>
+
+      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f8f8f8', padding: 12 }}>
+        {log || '로그가 여기에 표시됩니다.'}
+      </pre>
+    </div>
   );
 }

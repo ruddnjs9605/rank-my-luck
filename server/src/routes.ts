@@ -1,228 +1,132 @@
-import { Router } from "express";
-import { all, get, run } from "./db.js";
-import jwt from "jsonwebtoken";
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import { all, get, run } from './db.js';
+import { exchangeCodeForToken, fetchTossMe, decryptTossUser } from './toss.js';
 
-const r = Router();
+const router = Router();
 
-/** 인증 미들웨어 */
-const auth = async (req: any, res: any, next: any) => {
-  const h = req.headers.authorization;
-  if (!h?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
-  try {
-    const payload = jwt.verify(h.slice(7), process.env.JWT_SECRET!);
-    req.user = payload; // { user_id }
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
-};
-
-/** 개발용 토큰 발급 (실서비스는 OAuth 콜백 처리) */
-r.get("/auth/toss/callback", async (req, res) => {
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ error: "SERVER_MISCONFIG:JWT_SECRET" });
-    }
-    const qUserId = String(req.query.user_id || "");
-    if (!qUserId) return res.status(400).json({ error: "user_id required (dev mode)" });
-  
-    await run(`INSERT OR IGNORE INTO users(user_id) VALUES (?)`, [qUserId]);
-    const token = jwt.sign({ user_id: qUserId }, process.env.JWT_SECRET, { expiresIn: "30d" });
-    res.json({ token });
+/**
+ * 닉네임 중복 체크 & 생성 (토스 로그인 후 최초 1회)
+ * body: { nickname: string, tossUserKey?: string }
+ */
+router.post('/auth/nickname', async (req: Request, res: Response) => {
+  const Body = z.object({
+    nickname: z.string().min(2).max(20),
+    tossUserKey: z.string().optional(),
   });
 
-/** 내 프로필 */
-r.get("/api/me", auth, async (req: any, res) => {
-  const me = await get(
-    `SELECT id, user_id, nickname, best_score, coins, created_at
-       FROM users
-      WHERE user_id = ?`,
-    [req.user.user_id]
+  const body = Body.parse(req.body);
+
+  // 중복 검사
+  const existed = await get<{ id: number }>(
+    'SELECT id FROM users WHERE nickname = ?',
+    [body.nickname]
   );
-  res.json(me);
+
+  if (existed) {
+    return res
+      .status(409)
+      .json({ ok: false, message: '닉네임이 이미 사용중입니다.' });
+  }
+
+  // 생성
+  await run(
+    `INSERT INTO users (nickname, toss_user_key, best_prob) VALUES (?, ?, NULL)`,
+    [body.nickname, body.tossUserKey || null]
+  );
+
+  const user = await get<{
+    id: number;
+    nickname: string | null;
+    tossUserKey: string | null;
+    bestProb: number | null;
+  }>(
+    `SELECT id, nickname, toss_user_key as tossUserKey, best_prob as bestProb
+     FROM users
+     WHERE nickname = ?`,
+    [body.nickname]
+  );
+
+  return res.json({ ok: true, user });
 });
 
-/** 닉네임 설정 + 최초 코인(50) 보장 */
-r.post("/api/nickname", auth, async (req: any, res) => {
-  const { nickname } = req.body ?? {};
-  if (!nickname) return res.status(400).json({ error: "nickname required" });
+/**
+ * 토스 인가코드 → 토큰 교환
+ * body: { code: string }
+ */
+router.post('/toss/exchange', async (req: Request, res: Response) => {
+  const Body = z.object({ code: z.string().min(1) });
+  const { code } = Body.parse(req.body);
 
   try {
-    await run(`UPDATE users SET nickname = ? WHERE user_id = ?`, [nickname, req.user.user_id]);
-    // 최초 보정: coins < 50 이면 50으로
-    await run(
-      `UPDATE users SET coins = CASE WHEN coins < 50 THEN 50 ELSE coins END WHERE user_id = ?`,
-      [req.user.user_id]
-    );
-
-    const me = await get(
-      `SELECT id, user_id, nickname, best_score, coins, created_at FROM users WHERE user_id = ?`,
-      [req.user.user_id]
-    );
-    res.json(me);
+    const token = await exchangeCodeForToken(code);
+    return res.json({ ok: true, token });
   } catch (e: any) {
-    if (String(e.message).includes("UNIQUE")) {
-      return res.status(409).json({ error: "DUPLICATE_NICKNAME" });
-    }
-    throw e;
+    return res
+      .status(400)
+      .json({ ok: false, message: e?.message || '토큰 교환 실패' });
   }
 });
 
-/** 플레이(실패 시만 코인 -1, 코인 0이면 불가) */
-r.post("/api/play", auth, async (req: any, res) => {
-  const { chosen_prob, prev_score } = req.body ?? {};
-  const p = Number(chosen_prob);
-  if (!(p >= 0.1 && p <= 0.9)) return res.status(400).json({ error: "prob must be 0.1~0.9" });
+/**
+ * 토스 me 조회 → 복호화 → 우리 DB upsert
+ * body: { accessToken: string }
+ */
+router.post('/toss/me', async (req: Request, res: Response) => {
+  const Body = z.object({ accessToken: z.string().min(1) });
+  const { accessToken } = Body.parse(req.body);
 
-  const me = await get<{ best_score: number; coins: number }>(
-    `SELECT best_score, coins FROM users WHERE user_id = ?`,
-    [req.user.user_id]
-  );
-  if (!me) return res.status(404).json({ error: "NOT_FOUND" });
-
-  if (me.coins <= 0) return res.status(402).json({ error: "NO_COINS" });
-
-  const before = prev_score ? Number(prev_score) : 1.0;
-  const rnd = Math.random();
-  const success = rnd < p;
-
-  let current = 1.0;
-  let best = me.best_score;
-
-  await run("BEGIN");
   try {
-    if (success) {
-      current = before * p;
-      if (current < best) {
-        await run(`UPDATE users SET best_score = ? WHERE user_id = ?`, [current, req.user.user_id]);
-        best = current;
-      }
-    } else {
-      current = 1.0;
-      await run(`UPDATE users SET coins = coins - 1 WHERE user_id = ? AND coins > 0`, [req.user.user_id]);
-    }
+    const encrypted = await fetchTossMe(accessToken);
+    const decrypted = await decryptTossUser(encrypted);
 
-    await run(
-      `INSERT INTO records(user_id, current_score, chosen_prob, result)
-       VALUES (?, ?, ?, ?)`,
-      [req.user.user_id, current, p, success ? "success" : "fail"]
+    // tossUserKey 기준 upsert
+    const row = await get<{ id: number }>(
+      'SELECT id FROM users WHERE toss_user_key = ?',
+      [decrypted.tossUserKey]
     );
 
-    await run("COMMIT");
-  } catch (e) {
-    await run("ROLLBACK");
-    throw e;
-  }
+    if (!row) {
+      await run(
+        `INSERT INTO users (toss_user_key, nickname, best_prob)
+         VALUES (?, NULL, NULL)`,
+        [decrypted.tossUserKey]
+      );
+    }
 
-  const myRankRow = await get<{ rank: number }>(
-    `WITH ranked AS(
-       SELECT user_id, RANK() OVER (ORDER BY best_score ASC, created_at ASC) r
+    const user = await get<{
+      id: number;
+      nickname: string | null;
+      tossUserKey: string | null;
+      bestProb: number | null;
+    }>(
+      `SELECT id, nickname, toss_user_key as tossUserKey, best_prob as bestProb
        FROM users
-     ) SELECT r AS rank FROM ranked WHERE user_id = ?`,
-    [req.user.user_id]
-  );
-
-  res.json({
-    result: success ? "success" : "fail",
-    current_score: current,
-    best_score: best,
-    rank: myRankRow?.rank ?? null
-  });
-});
-
-/** 내 코인 조회 */
-r.get("/api/wallet", auth, async (req: any, res) => {
-  const row = await get<{ coins: number }>(
-    `SELECT coins FROM users WHERE user_id = ?`,
-    [req.user.user_id]
-  );
-  res.json({ coins: row?.coins ?? 0 });
-});
-
-/** 광고 보상(+20) — idempotencyKey로 중복 방지 */
-r.post("/api/ads/reward", auth, async (req: any, res) => {
-  const { idempotencyKey } = req.body ?? {};
-  if (!idempotencyKey) return res.status(400).json({ error: "IDEMPOTENCY_KEY_REQUIRED" });
-
-  try {
-    await run("BEGIN");
-    await run(
-      `INSERT INTO ad_rewards(user_id, amount, idempotency_key) VALUES(?, ?, ?)`,
-      [req.user.user_id, 20, idempotencyKey]
+       WHERE toss_user_key = ?`,
+      [decrypted.tossUserKey]
     );
-    await run(`UPDATE users SET coins = coins + 20 WHERE user_id = ?`, [req.user.user_id]);
-    await run("COMMIT");
-    res.json({ ok: true, delta: +20 });
+
+    return res.json({ ok: true, user, decrypted });
   } catch (e: any) {
-    await run("ROLLBACK");
-    if (String(e.message).includes("UNIQUE")) {
-      return res.status(409).json({ error: "DUPLICATE_REWARD" });
-    }
-    throw e;
+    return res
+      .status(400)
+      .json({ ok: false, message: e?.message || '유저 조회 실패' });
   }
 });
 
-/** 추천 보상(+50) — 자신 제외, 1회만 */
-r.post("/api/referral/claim", auth, async (req: any, res) => {
-  const { referrer_user_id } = req.body ?? {};
-  if (!referrer_user_id) return res.status(400).json({ error: "REFERRER_REQUIRED" });
-  if (referrer_user_id === req.user.user_id) return res.status(400).json({ error: "SELF_REFERRAL_FORBIDDEN" });
-
-  try {
-    await run("BEGIN");
-
-    const exists = await get(`SELECT 1 FROM referral_rewards WHERE referred_user_id = ?`, [req.user.user_id]);
-    if (exists) {
-      await run("ROLLBACK");
-      return res.status(409).json({ error: "ALREADY_REWARDED" });
-    }
-
-    await run(
-      `INSERT INTO referral_rewards(referrer_user_id, referred_user_id, amount) VALUES(?, ?, 50)`,
-      [referrer_user_id, req.user.user_id]
-    );
-    await run(`UPDATE users SET coins = coins + 50 WHERE user_id = ?`, [referrer_user_id]);
-
-    await run("COMMIT");
-    res.json({ ok: true, delta: +50, to: referrer_user_id });
-  } catch (e) {
-    await run("ROLLBACK");
-    throw e;
-  }
-});
-
-/** 리더보드: Top 100 + 내 랭크 */
-r.get("/api/leaderboard", auth, async (req: any, res) => {
-  const TOP_N = 100;
-
-  const top = await all<{ nickname: string; best_score: number }>(
-    `SELECT nickname, best_score
-       FROM users
-      WHERE nickname IS NOT NULL
-      ORDER BY best_score ASC, created_at ASC
-      LIMIT ?`,
-    [TOP_N]
+/**
+ * 랭킹 조회: best_prob 기준 상위 100명
+ */
+router.get('/ranking', async (_req: Request, res: Response) => {
+  const rows = await all<{ nickname: string; bestProb: number | null }>(
+    `SELECT nickname, best_prob as bestProb
+     FROM users
+     WHERE nickname IS NOT NULL
+     ORDER BY best_prob ASC NULLS LAST
+     LIMIT 100`
   );
 
-  let me: { nickname: string | null; best_score: number; rank: number | null; user_id: string } | null = null;
-  const my = await get<{ nickname: string | null; best_score: number; user_id: string }>(
-    `SELECT nickname, best_score, user_id FROM users WHERE user_id = ?`,
-    [req.user.user_id]
-  );
-
-  if (my) {
-    const rnk = await get<{ rank: number }>(
-      `WITH ranked AS (
-         SELECT user_id,
-                RANK() OVER (ORDER BY best_score ASC, created_at ASC) AS r
-           FROM users
-       )
-       SELECT r AS rank FROM ranked WHERE user_id = ?`,
-      [req.user.user_id]
-    );
-    me = { nickname: my.nickname ?? null, best_score: my.best_score, rank: rnk?.rank ?? null, user_id: my.user_id };
-  }
-
-  res.json({ top, me });
+  return res.json({ ok: true, rows });
 });
 
-export default r;
+export default router;
