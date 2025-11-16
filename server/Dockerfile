@@ -29,7 +29,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 
 # (SQLite를 이미지에 포함해 테스트할 경우, server/db 폴더가 있다면 주석 해제)
-# COPY --from=builder /app/db ./db
+COPY --from=builder /app/db ./db
 
 # 6. 서버 실행
 CMD ["node", "dist/index.js"]
