@@ -1,10 +1,14 @@
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App';
-import { AppsInToss } from '@apps-in-toss/web-framework';
+// client/src/main.tsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App";
+import "./styles.css";
 
-// 토스 미니앱 등록
-AppsInToss.registerApp({ appName: 'rankmyluck' }); // ← 요청하신 appname
-
-const root = createRoot(document.getElementById('root')!);
-root.render(<React.StrictMode><App /></React.StrictMode>);
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
+);

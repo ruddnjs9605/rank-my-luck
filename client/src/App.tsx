@@ -1,12 +1,23 @@
-import React from 'react';
-import Login from './pages/Login';
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Login from "./pages/Login";
+import Nickname from "./pages/Nickname";
+import Play from "./pages/Play";
+import Leaderboard from "./pages/Leaderboard";
+import TopBar from "./components/TopBar";
 
 export default function App() {
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: 16 }}>
-      <h1>나의 운은 몇등?</h1>
-      <Login />
-      {/* 추후: 닉네임 설정 → 플레이 → 랭킹 컴포넌트 연결 */}
-    </div>
+    <BrowserRouter>
+      <TopBar />
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: 16 }}>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/nickname" element={<Nickname />} />
+          <Route path="/play" element={<Play />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }

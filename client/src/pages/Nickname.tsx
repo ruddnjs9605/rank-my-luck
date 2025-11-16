@@ -1,57 +1,66 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { setNicknameApi, claimReferral } from "../lib/api";
-import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
+import { useNavigate } from "react-router-dom";
 
-export default function Nickname(){
+export default function Nickname() {
   const nav = useNavigate();
   const [nick, setNick] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = async () => {
-    if(!nick.trim()) return;
-    setLoading(true);
-    const res = await setNicknameApi(nick.trim());
-    setLoading(false);
-
-    if (res?.error === "DUPLICATE_NICKNAME") {
-      alert("이미 사용중인 닉네임이에요. 다른 이름을 시도해 주세요.");
-      return;
-    }
-
-    // 추천(ref) 보상 청구
-    try {
-      const q = new URLSearchParams(window.location.search);
-      const ref = q.get("ref") || localStorage.getItem("ref");
-      if (ref) {
-        await claimReferral(ref);
-        localStorage.removeItem("ref");
-      }
-    } catch {}
-
-    nav("/play");
-  };
-
-  // 처음 들어올 때 ref 파라미터 저장(로그인/닉설 넘어가며 유지)
-  React.useEffect(() => {
+  // ref 쿠키 저장
+  useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const ref = q.get("ref");
     if (ref) localStorage.setItem("ref", ref);
   }, []);
 
+  const submit = async () => {
+    if (!nick.trim()) return;
+
+    setLoading(true);
+    try {
+      const res = await setNicknameApi(nick.trim());
+      setLoading(false);
+
+      // 닉네임 중복 처리
+      if (res?.error === "DUPLICATE_NICKNAME") {
+        alert("이미 사용중인 닉네임입니다. 다른 이름을 사용해 주세요.");
+        return;
+      }
+
+      // ref 보상 처리
+      const savedRef = localStorage.getItem("ref");
+      if (savedRef) {
+        await claimReferral(savedRef);
+        localStorage.removeItem("ref");
+      }
+
+      // 플레이 화면 이동
+      nav("/play");
+    } catch (e) {
+      setLoading(false);
+      alert("닉네임 설정 실패");
+    }
+  };
+
   return (
-    <>
-      <div className="section">
-        <div className="card">
-          <div style={{fontWeight:700, fontSize:16, marginBottom:8}}>닉네임 설정</div>
-          <input className="input" value={nick} onChange={e=>setNick(e.target.value)} placeholder="닉네임(중복불가)" />
-        </div>
+    <div className="section">
+      <div className="card">
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>닉네임 설정</div>
+        <input
+          value={nick}
+          onChange={(e) => setNick(e.target.value)}
+          placeholder="닉네임 입력"
+          className="input"
+        />
       </div>
+
       <div className="cta">
-        <Button full onClick={submit} disabled={loading || !nick.trim()}>
+        <Button full onClick={submit} disabled={loading}>
           {loading ? "저장 중…" : "저장하고 시작"}
         </Button>
       </div>
-    </>
+    </div>
   );
 }

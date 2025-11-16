@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { appLogin } from '@apps-in-toss/web-framework';
 import { api } from '../lib/api';
+import { useNavigate } from "react-router-dom";
+const navigate = useNavigate();
+navigate("/play");
+
+
+
 
 export default function Login() {
   const [log, setLog] = useState<string>('');
@@ -33,7 +39,7 @@ export default function Login() {
 
   const createNickname = async () => {
     try {
-      const resp = await api.post('/auth/nickname', { nickname, tossUserKey: tossUserKey || undefined });
+      const resp = await api.post('/api/auth/nickname', { nickname, tossUserKey: tossUserKey || undefined });
       setLog(`닉네임 생성 완료: ${JSON.stringify(resp.user)}`);
     } catch (e: any) {
       setLog(`닉네임 생성 실패: ${e?.message || e}`);
