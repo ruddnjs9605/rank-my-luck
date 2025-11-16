@@ -11,20 +11,20 @@ const fmtProb = (p: number) => {
   return `${pct.toFixed(12).replace(/0+$/,"")}%`;
 };
 
-export default function Play(){
+export default function Play() {
   const nav = useNavigate();
   const [loaded, setLoaded] = useState(false);
   const [chosen, setChosen] = useState(0.5);
   const [current, setCurrent] = useState(1.0);
   const [best, setBest] = useState(1.0);
   const [rank, setRank] = useState<number | null>(null);
-  const [result, setResult] = useState<"success"|"fail"|null>(null);
-  const [nickname, setNickname] = useState<string | null>(null);
+  const [result, setResult] = useState<"success" | "fail" | null>(null);
+  const [nickname, setNickname] = useState<string | undefined>(undefined);
 
-  const [pendingTop10, setPendingTop10] = useState<{rank:number; best:number} | null>(null);
+  const [pendingTop10, setPendingTop10] = useState<{ rank: number; best: number } | null>(null);
 
   // 3D 코인
-  const [rot, setRot] = useState(0);        // 0=success 앞면, 180=fail 뒷면
+  const [rot, setRot] = useState(0); // 0=success 앞면, 180=fail 뒷면
   const [spinning, setSpinning] = useState(false);
 
   // 효과음
@@ -42,23 +42,56 @@ export default function Play(){
         await audioEl.current.play();
       } else {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = ctx.createOscillator(); const g = ctx.createGain();
-        osc.type = "triangle"; osc.frequency.value = 800; g.gain.value = 0.03;
-        osc.connect(g); g.connect(ctx.destination);
-        osc.start(); setTimeout(()=>{ osc.stop(); ctx.close(); }, 120);
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = 800;
+        g.gain.value = 0.03;
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close();
+        }, 120);
       }
     } catch {}
   };
 
-  // 프로필
+  // 프로필 + 닉네임 확인
   useEffect(() => {
-    me().then(p => {
-      if (!p?.nickname) { nav("/nickname"); return; }
-      setBest(p.best_score ?? 1.0);
-      setNickname(p.nickname ?? null);
-      setLoaded(true);
-      setRot(0);
-    });
+    const load = async () => {
+      try {
+        const p = await me();
+        const storedNick = localStorage.getItem("nickname") || undefined;
+        const nick = p?.nickname ?? storedNick;
+
+        if (!nick) {
+          // 서버/로컬 어디에도 닉네임이 없으면 닉네임 설정 페이지로
+          nav("/nickname");
+          return;
+        }
+
+        setBest(p.best_score ?? 1.0);
+        setNickname(nick);
+        setLoaded(true);
+        setRot(0);
+      } catch (e) {
+        console.error("me() error:", e);
+        // 서버 호출 실패 시에도 localStorage 닉네임이 있으면 플레이 허용
+        const storedNick = localStorage.getItem("nickname") || undefined;
+        if (!storedNick) {
+          nav("/nickname");
+          return;
+        }
+        setBest(1.0);
+        setNickname(storedNick);
+        setLoaded(true);
+        setRot(0);
+      }
+    };
+
+    load();
   }, [nav]);
 
   const toss = async () => {
@@ -66,7 +99,7 @@ export default function Play(){
     setSpinning(true);
     setResult(null);
     playSound();
-    setRot(prev => prev + 720);
+    setRot((prev) => prev + 720);
 
     setTimeout(async () => {
       const res = await play(chosen, current);
@@ -87,7 +120,7 @@ export default function Play(){
         if (res.best_score === res.current_score && res.rank && res.rank <= 10) {
           setPendingTop10({ rank: res.rank, best: res.best_score });
         }
-        setRot(prev => {
+        setRot((prev) => {
           const want = 0;
           const mod = ((prev % 360) + 360) % 360;
           const delta = (want - mod + 360) % 360;
@@ -99,7 +132,7 @@ export default function Play(){
           setPendingTop10(null);
         }
         setCurrent(1.0);
-        setRot(prev => {
+        setRot((prev) => {
           const want = 180;
           const mod = ((prev % 360) + 360) % 360;
           const delta = (want - mod + 360) % 360;
@@ -113,7 +146,6 @@ export default function Play(){
 
   const onRewardAd = async () => {
     try {
-      // (실서비스: Toss rewarded-ad SDK 성공 콜백에서 아래 호출)
       const key = (crypto as any).randomUUID ? crypto.randomUUID() : String(Date.now());
       const r = await rewardAd(key);
       if (r?.ok) alert("코인 20개가 충전되었어요!");
@@ -127,7 +159,7 @@ export default function Play(){
 
   return (
     <>
-      <div className="section" style={{display:"grid", gap:12}}>
+      <div className="section" style={{ display: "grid", gap: 12 }}>
         <div className="card">
           <div className="gauge-wrap">
             <div className="gauge-label">
@@ -180,7 +212,7 @@ export default function Play(){
                 marginTop: 8,
                 fontSize: 13,
                 color: result === "success" ? "var(--success)" : "var(--danger)",
-                textAlign: "center"
+                textAlign: "center",
               }}
             >
               결과: {result === "success" ? "성공" : "실패"}
@@ -190,7 +222,7 @@ export default function Play(){
       </div>
 
       {/* CTA */}
-      <div className="cta" style={{display:"grid", gap:8}}>
+      <div className="cta" style={{ display: "grid", gap: 8 }}>
         <Button full onClick={toss} disabled={spinning}>
           {spinning ? "TOSS…" : "TOSS"}
         </Button>
@@ -200,7 +232,14 @@ export default function Play(){
         <Button
           full
           variant="ghost"
-          onClick={() => shareMyRank({ best, rank, nickname, /* referrer: me.user_id는 leaderboard/me 응답으로 추가 가능 */ })}
+          onClick={() =>
+            shareMyRank({
+              best,
+              rank,
+              nickname, // string | undefined
+              // referrer: ... (나중에 user id 추가 가능)
+            })
+          }
           disabled={spinning}
         >
           내 랭킹 공유하기
