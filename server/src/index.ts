@@ -1,3 +1,4 @@
+
 // server/src/index.ts
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
@@ -11,6 +12,9 @@ import { fileURLToPath } from 'node:url';
 import routes from './routes.js';
 
 const app = express();
+
+// ✅ Cloud Run 같은 프록시 뒤에 있을 때 필수
+app.set('trust proxy', 1);
 
 // 바디 파서 & 보안 & 로깅
 app.use(express.json({ limit: '1mb' }));
@@ -36,6 +40,7 @@ app.use(
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
+    // v7에서 trust proxy 관련 에러 방지용 검증은 trust proxy 설정으로 해결됨
   })
 );
 
