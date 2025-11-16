@@ -1,4 +1,3 @@
-// server/src/db.ts
 import sqlite3 from 'sqlite3';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,43 +7,31 @@ sqlite3.verbose();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 기본 DB 경로: 서버 루트 기준 ../../db/dev.sqlite
-const dbPath =
-  process.env.DB_PATH ||
-  path.join(__dirname, '..', '..', 'db', 'dev.sqlite');
+// dist/db.js 기준으로 한 단계 위(= /app) -> /app/db/dev.sqlite
+const dbPath = path.join(__dirname, '..', 'db', 'dev.sqlite');
 
 export const db = new sqlite3.Database(dbPath);
 
-// 공통 Promise 래퍼들
-export function run(sql: string, params: any[] = []): Promise<void> {
-  return new Promise((resolve, reject) => {
+export const run = (sql: string, params: any[] = []) =>
+  new Promise<void>((resolve, reject) => {
     db.run(sql, params, function (err) {
       if (err) return reject(err);
       resolve();
     });
   });
-}
 
-export function get<T = any>(
-  sql: string,
-  params: any[] = []
-): Promise<T | undefined> {
-  return new Promise((resolve, reject) => {
+export const get = <T = any>(sql: string, params: any[] = []) =>
+  new Promise<T | undefined>((resolve, reject) => {
     db.get(sql, params, (err, row) => {
       if (err) return reject(err);
       resolve(row as T | undefined);
     });
   });
-}
 
-export function all<T = any>(
-  sql: string,
-  params: any[] = []
-): Promise<T[]> {
-  return new Promise((resolve, reject) => {
+export const all = <T = any>(sql: string, params: any[] = []) =>
+  new Promise<T[]>((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
       if (err) return reject(err);
       resolve(rows as T[]);
     });
   });
-}
