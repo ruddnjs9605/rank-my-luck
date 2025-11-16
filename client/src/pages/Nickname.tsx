@@ -8,7 +8,7 @@ export default function Nickname() {
   const [nick, setNick] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ref 쿠키 저장
+  // ref 파라미터 저장
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const ref = q.get("ref");
@@ -24,7 +24,7 @@ export default function Nickname() {
       setLoading(false);
 
       // 닉네임 중복 처리
-      if (res?.error === "DUPLICATE_NICKNAME") {
+      if ("error" in res && res.error === "DUPLICATE_NICKNAME") {
         alert("이미 사용중인 닉네임입니다. 다른 이름을 사용해 주세요.");
         return;
       }
@@ -36,11 +36,11 @@ export default function Nickname() {
         localStorage.removeItem("ref");
       }
 
-      // 플레이 화면 이동
+      // 성공 → 플레이 화면 이동
       nav("/play");
-    } catch (e) {
+    } catch (e: any) {
       setLoading(false);
-      alert("닉네임 설정 실패");
+      alert("닉네임 설정 실패: " + (e?.message || e));
     }
   };
 
