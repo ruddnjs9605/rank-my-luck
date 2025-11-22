@@ -14,6 +14,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
+    credentials: "include", // 쿠키(uid) 전달
     ...options,
   });
 
@@ -22,6 +23,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     try {
       msg = JSON.parse(msg);
     } catch {}
+    // 401 처리(로그인 필요)
+    if (res.status === 401) {
+      throw new Error(msg?.message || "로그인이 필요합니다.");
+    }
     throw new Error(msg?.message || `API_ERROR ${res.status}`);
   }
 
@@ -32,7 +37,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // HTTP wrapper
 // ============================
 export const api = {
-  get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  get: <T>(path: string) =>
+    request<T>(path, { method: "GET" }),
   post: <T>(path: string, body: any) =>
     request<T>(path, {
       method: "POST",
@@ -81,12 +87,16 @@ export async function setNicknameApi(nick: string): Promise<NicknameResponse> {
   });
 }
 
+// 닉네임 API 응답 타입
+export type NicknameResponse =
+  | { user: { id: number; nickname: string; best_score: number | null } }
+  | { error: "DUPLICATE_NICKNAME"; message: string };
 
 // ============================
 // 5) 추천인 보상 (referral)
 // ============================
 export function claimReferral(code: string) {
-  return api.post("/api/referral/claim", { code });
+  return api.post("/api/referral/claim", { ref: code });
 }
 
 // ============================
@@ -105,8 +115,23 @@ export function wallet() {
   return api.get<{ coins: number }>("/api/wallet");
 }
 
+// ============================
+// 8) 토스 로그인 (authorizationCode 서버로 전달)
+// ============================
+export type TossLoginResponse =
+  | {
+      ok: true;
+      hasNickname: boolean;
+      nickname: string | null;
+    }
+  | {
+      error: string;
+      message: string;
+    };
 
-// 닉네임 API 응답 타입
-export type NicknameResponse =
-  | { user: { id: number; nickname: string; best_score: number | null } }
-  | { error: "DUPLICATE_NICKNAME"; message: string };
+export function tossLogin(authorizationCode: string, referrer?: string | null) {
+  return api.post<TossLoginResponse>("/api/auth/toss-login", {
+    authorizationCode,
+    referrer: referrer ?? null,
+  });
+}
