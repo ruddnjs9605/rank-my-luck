@@ -7,7 +7,7 @@ sqlite3.verbose();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 기본 DB 경로: /app/db/dev.sqlite (로컬에선 server/dist 기준)
+// 기본 DB 경로
 const dbPath =
   process.env.DB_PATH ||
   path.join(__dirname, '..', 'db', 'dev.sqlite');
@@ -23,10 +23,7 @@ export function run(sql: string, params: any[] = []): Promise<void> {
   });
 }
 
-export function get<T = any>(
-  sql: string,
-  params: any[] = []
-): Promise<T | undefined> {
+export function get<T = any>(sql: string, params: any[] = []): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     db.get(sql, params, (err, row) => {
       if (err) return reject(err);
@@ -35,10 +32,7 @@ export function get<T = any>(
   });
 }
 
-export function all<T = any>(
-  sql: string,
-  params: any[] = []
-): Promise<T[]> {
+export function all<T = any>(sql: string, params: any[] = []): Promise<T[]> {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
       if (err) return reject(err);

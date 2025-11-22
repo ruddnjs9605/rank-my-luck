@@ -15,7 +15,7 @@ function getKeyBuffer() {
     : Buffer.from(KEY_RAW, 'hex');
 }
 
-/** Authorization Code -> Token */
+// Authorization Code -> Token
 export async function exchangeCodeForToken(code: string) {
   const resp = await axios.post(
     TOKEN_URL,
@@ -30,7 +30,7 @@ export async function exchangeCodeForToken(code: string) {
   return resp.data;
 }
 
-/** GET /me (암호화된 유저 정보 수신) */
+// GET /me (암호화된 payload)
 export async function fetchTossMe(accessToken: string): Promise<TossEncryptedPayload> {
   const resp = await axios.get(ME_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -39,13 +39,13 @@ export async function fetchTossMe(accessToken: string): Promise<TossEncryptedPay
   return resp.data as TossEncryptedPayload;
 }
 
-/** AES-256-GCM 복호화 */
-function decryptField(payload: EncryptedField) {
+// AES-256-GCM 복호화
+function decryptField(f: EncryptedField) {
   const key = getKeyBuffer();
-  const iv = Buffer.from(payload.iv, 'base64');
-  const aad = Buffer.from(payload.aad, 'base64');
-  const data = Buffer.from(payload.data, 'base64');
-  const tag = Buffer.from(payload.tag, 'base64');
+  const iv = Buffer.from(f.iv, 'base64');
+  const aad = Buffer.from(f.aad, 'base64');
+  const data = Buffer.from(f.data, 'base64');
+  const tag = Buffer.from(f.tag, 'base64');
 
   const decipher = createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAAD(aad);
@@ -55,11 +55,11 @@ function decryptField(payload: EncryptedField) {
   return dec.toString('utf8');
 }
 
-/** 토스 유저 정보 복호화 & 표준화 */
-export async function decryptTossUser(encrypted: TossEncryptedPayload) {
-  const tossUserKey = decryptField(encrypted.userKey);
-  const phone = encrypted.phone ? decryptField(encrypted.phone) : null;
-  const name = encrypted.name ? decryptField(encrypted.name) : null;
+// 토스 유저 표준화
+export async function decryptTossUser(payload: TossEncryptedPayload) {
+  const tossUserKey = decryptField(payload.userKey);
+  const phone = payload.phone ? decryptField(payload.phone) : null;
+  const name = payload.name ? decryptField(payload.name) : null;
 
   return { tossUserKey, phone, name };
 }

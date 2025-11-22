@@ -1,4 +1,3 @@
-
 // server/src/index.ts
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
@@ -13,15 +12,15 @@ import routes from './routes.js';
 
 const app = express();
 
-// ✅ Cloud Run 같은 프록시 뒤에 있을 때 필수
+// Cloud Run 프록시 헤더 허용
 app.set('trust proxy', 1);
 
-// 바디 파서 & 보안 & 로깅
+// 기본 미들웨어
 app.use(express.json({ limit: '1mb' }));
 app.use(helmet());
 app.use(morgan('dev'));
 
-// CORS 설정
+// CORS
 const origin = process.env.CORS_ORIGIN || '*';
 app.use(
   cors({
@@ -30,21 +29,19 @@ app.use(
   })
 );
 
-// 쿠키 파서
 app.use(cookieParser());
 
-// 간단 레이트리밋 (10초에 100요청)
+// Rate limit
 app.use(
   rateLimit({
     windowMs: 10 * 1000,
     max: 100,
     standardHeaders: true,
     legacyHeaders: false,
-    // v7에서 trust proxy 관련 에러 방지용 검증은 trust proxy 설정으로 해결됨
   })
 );
 
-// 헬스 체크
+// Health Check
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
@@ -52,13 +49,12 @@ app.get('/health', (_req: Request, res: Response) => {
 // API 라우터
 app.use('/api', routes);
 
-// 정적 파일 (선택)
+// Static
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use('/static', express.static(path.join(__dirname, '..', 'public')));
 
-// 에러 핸들러
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Error handler
 app.use(
   (err: any, _req: Request, res: Response, _next: NextFunction) => {
     console.error(err);
