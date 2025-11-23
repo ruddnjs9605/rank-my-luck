@@ -9,10 +9,11 @@ export default defineConfig({
     bridgeColorMode: 'basic',
   },
   web: {
-    host: 'localhost',
+    host: '0.0.0.0',
     port: 5173,
     commands: {
-      dev: 'vite --host',
+      // --host 0.0.0.0 로 고정해 LAN/미니앱 접속 시 에러를 방지
+      dev: 'vite --host 0.0.0.0 --port 5173',
       build: 'tsc -p tsconfig.json && vite build',
     },
   },
