@@ -3,6 +3,8 @@ import { me, play, rewardAd } from "../lib/api";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import { shareMyRank } from "../lib/share";
+import { wallet } from "../lib/api";
+import { showRewardedAd } from "../lib/ads";
 
 const fmtProb = (p: number) => {
   const pct = p * 100;
@@ -20,8 +22,10 @@ export default function Play() {
   const [rank, setRank] = useState<number | null>(null);
   const [result, setResult] = useState<"success" | "fail" | null>(null);
   const [nickname, setNickname] = useState<string | undefined>(undefined);
+  const [coins, setCoins] = useState<number>(0);
 
   const [pendingTop10, setPendingTop10] = useState<{ rank: number; best: number } | null>(null);
+  const [adAvailable, setAdAvailable] = useState<boolean>(true);
 
   // 3D 코인
   const [rot, setRot] = useState(0); // 0=success 앞면, 180=fail 뒷면
@@ -74,6 +78,7 @@ export default function Play() {
 
         setBest(p.best_score ?? 1.0);
         setNickname(nick);
+        setCoins(p.coins ?? 0);
         setLoaded(true);
         setRot(0);
       } catch (e) {
@@ -86,9 +91,14 @@ export default function Play() {
         }
         setBest(1.0);
         setNickname(storedNick);
+        setCoins(0);
         setLoaded(true);
         setRot(0);
       }
+
+      // 광고 가능 여부 확인 (토스 미니앱)
+      const anyWindow = window as any;
+      setAdAvailable(Boolean(anyWindow?.Toss?.AdMob?.loadRewardedAd));
     };
 
     load();
@@ -96,6 +106,10 @@ export default function Play() {
 
   const toss = async () => {
     if (spinning) return;
+    if (coins <= 0) {
+      alert("코인이 부족해요. 광고를 보거나 추천인을 통해 코인을 얻어주세요!");
+      return;
+    }
     setSpinning(true);
     setResult(null);
     playSound();
@@ -108,6 +122,10 @@ export default function Play() {
       if (res?.error === "NO_COINS") {
         setSpinning(false);
         alert("코인이 부족해요. 광고를 보거나 친구에게 공유해 충전해 주세요!");
+        try {
+          const w = await wallet();
+          setCoins(w?.coins ?? 0);
+        } catch {}
         return;
       }
 
@@ -141,17 +159,22 @@ export default function Play() {
       }
 
       setTimeout(() => setSpinning(false), 200);
+
+      // 최신 코인 동기화
+      try {
+        const w = await wallet();
+        setCoins(w?.coins ?? coins);
+      } catch {}
     }, 700);
   };
 
   const onRewardAd = async () => {
-    try {
-      const key = (crypto as any).randomUUID ? crypto.randomUUID() : String(Date.now());
-      const r = await rewardAd(key);
-      if (r?.ok) alert("코인 20개가 충전되었어요!");
-      else alert("광고 보상 처리 중 문제가 발생했어요.");
-    } catch {
-      alert("광고 보상 요청 실패");
+    const ok = await showRewardedAd();
+    if (ok) {
+      try {
+        const w = await wallet();
+        setCoins(w?.coins ?? coins);
+      } catch {}
     }
   };
 
@@ -161,6 +184,10 @@ export default function Play() {
     <>
       <div className="section" style={{ display: "grid", gap: 12 }}>
         <div className="card">
+          <div className="stat">
+            <div className="label">보유 코인</div>
+            <div className="value">{coins ?? 0}</div>
+          </div>
           <div className="gauge-wrap">
             <div className="gauge-label">
               선택 확률: <b>{chosen.toFixed(1)}</b>
@@ -227,7 +254,7 @@ export default function Play() {
           {spinning ? "TOSS…" : "TOSS"}
         </Button>
         <Button full variant="outline" onClick={onRewardAd} disabled={spinning}>
-          광고 보고 코인 +20
+          {adAvailable ? (coins <= 0 ? "코인 얻기 (광고보기)" : "광고 보고 코인 +20") : "토스 앱에서 광고 보기"}
         </Button>
         <Button
           full

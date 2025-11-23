@@ -51,15 +51,23 @@ export default function Login() {
   };
 
   return (
-    <div className="section">
-      <div className="card">
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>로그인</div>
-        <p style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>
-          토스 계정으로 로그인 후, 나의 운을 테스트해 보세요.
+    <div className="login-hero">
+      <div className="login-glass">
+        <div className="login-pill">나의 운은 몇등?</div>
+        <h1 className="login-title">토스에서 바로 즐기는 운 테스트</h1>
+        <p className="login-sub">
+          토스 계정으로 1초 만에 시작하고,<br />
+          기록을 친구와 공유해보세요.
         </p>
-        <Button full onClick={handleTossLogin} disabled={loading}>
-          {loading ? "로그인 중…" : "토스로 로그인"}
-        </Button>
+
+        <div className="login-actions">
+          <Button full onClick={handleTossLogin} disabled={loading}>
+            {loading ? "로그인 중…" : "토스로 로그인"}
+          </Button>
+          <div className="login-hint">
+            토스 미니앱에서 실행 중인지 확인해주세요.
+          </div>
+        </div>
       </div>
     </div>
   );

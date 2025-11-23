@@ -103,9 +103,18 @@ export function claimReferral(code: string) {
 // 6) 랭킹
 // ============================
 export function fetchRanking() {
-  return api.get<{ rows: { nickname: string; bestProb: number | null }[] }>(
-    "/api/ranking"
-  );
+  return api.get<{
+    rows: { nickname: string; bestProb: number | null }[];
+    me: { nickname: string | null; best_score: number | null; rank: number | null } | null;
+    event: {
+      participants: number;
+      prizePool: number;
+      threshold: number;
+      maxPrize: number;
+      nextReset: string;
+      lastWinner: { date: string; prizePool: number; nickname: string | null; best: number | null } | null;
+    };
+  }>("/api/ranking");
 }
 
 // ============================

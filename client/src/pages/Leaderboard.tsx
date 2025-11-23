@@ -23,7 +23,15 @@ type ApiRow = {
 
 export default function Leaderboard() {
   const [top, setTop] = useState<TopRow[]>([]);
-  const [me, setMe] = useState<{ nickname?: string; best_score?: number; rank?: number } | null>(null);
+  const [me, setMe] = useState<{ nickname: string | null; best_score: number | null; rank: number | null } | null>(null);
+  const [event, setEvent] = useState<{
+    participants: number;
+    prizePool: number;
+    threshold: number;
+    maxPrize: number;
+    nextReset: string;
+    lastWinner: { date: string; prizePool: number; nickname: string | null; best: number | null } | null;
+  } | null>(null);
   const [sharedInfo, setSharedInfo] = useState<{ rank?: string; best?: string; nickname?: string } | null>(null);
   const location = useLocation();
 
@@ -51,7 +59,8 @@ export default function Leaderboard() {
           }));
 
         setTop(mapped);
-        setMe(null); // TODO: 나중에 /api/ranking 이 me 정보도 주면 여기서 설정
+        setMe(res.me ?? null);
+        setEvent(res.event ?? null);
       })
       .catch((err) => {
         console.error("랭킹 불러오기 실패:", err);
@@ -105,6 +114,45 @@ export default function Leaderboard() {
           </ol>
         </div>
 
+        {/* 이벤트 정보 */}
+        {event && (
+          <div className="card" style={{ marginTop: 12, background: "#f9fbff", borderColor: "#d9e8ff" }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>오늘의 이벤트</div>
+            <div style={{ fontSize: 12, color: "#4b5563", marginBottom: 8 }}>
+              매일 22:00 리셋 · 참여자 1000명↑ 시 상금 풀 생성 (최대 {event.maxPrize.toLocaleString()}P)
+            </div>
+            <div className="stat">
+              <div className="label">참여자</div>
+              <div className="value">
+                {event.participants}명 / {event.threshold}명
+              </div>
+            </div>
+            <div className="stat">
+              <div className="label">상금 풀</div>
+              <div className="value">
+                {event.prizePool > 0 ? `${event.prizePool.toLocaleString()}P` : "조건 미충족"}
+                <span style={{ marginLeft: 6, color: "#6b7280", fontWeight: 600 }}>
+                  (최대 {event.maxPrize.toLocaleString()}P)
+                </span>
+              </div>
+            </div>
+            <div className="stat">
+              <div className="label">다음 리셋</div>
+              <div className="value">
+                {new Date(event.nextReset).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour12: false })}
+              </div>
+            </div>
+            {event.lastWinner && (
+              <div className="stat">
+                <div className="label">어제 우승</div>
+                <div className="value">
+                  {event.lastWinner.nickname ?? "익명"} · {event.lastWinner.prizePool.toLocaleString()}P
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 내 순위 카드 (현재는 me 정보가 없으니 표시 안 될 수 있음) */}
         {me && (
           <div className="card" style={{ marginTop: 12 }}>
@@ -126,7 +174,7 @@ export default function Leaderboard() {
                   shareMyRank({
                     best: me.best_score ?? 1,
                     rank: me.rank ?? null,
-                    nickname: me.nickname,
+                    nickname: me.nickname ?? undefined,
                   })
                 }
               >

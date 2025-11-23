@@ -20,11 +20,20 @@ app.use(express.json({ limit: '1mb' }));
 app.use(helmet());
 app.use(morgan('dev'));
 
-// CORS
-const origin = process.env.CORS_ORIGIN || '*';
+// CORS: allowlist 기반. 기본은 로컬 개발용 5173.
+const originEnv = process.env.CORS_ORIGIN;
+const allowOrigins = originEnv
+  ? originEnv.split(',').map((o) => o.trim()).filter(Boolean)
+  : ['http://localhost:5173'];
+
 app.use(
   cors({
-    origin,
+    origin(origin, callback) {
+      // 모바일 앱 내 webview 등 Origin 없는 요청 허용
+      if (!origin) return callback(null, true);
+      if (allowOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
+    },
     credentials: true,
   })
 );
