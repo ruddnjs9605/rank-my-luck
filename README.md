@@ -1,43 +1,67 @@
 ## Rank My Luck
 
-간단한 토스 미니앱(웹)용 운빨 게임. 프런트는 Vite/React, 백엔드는 Express + SQLite 입니다.
+토스 미니앱용 확률 게임. 프런트는 Vite/React, 백엔드는 Express + PostgreSQL(Cloud SQL)입니다.
 
-### 빠른 시작
-- Node 18+ 설치
-- 클라이언트: `cd client && npm install`
-- 서버: `cd server && npm install`
-- 로컬 DB 초기화: `npm run db:reset` (server 디렉터리에서)
-- 개발 실행: `npm run dev` (server) / `npm run dev` (client)
+### 로컬 개발
+- 요구: Node 18+, psql
+- 클라이언트: `cd client && npm install && npm run dev` (VITE_API_BASE_URL을 로컬 API로 설정)
+- 서버: `cd server && npm install && npm run dev`
+  - Postgres 연결 정보는 `.env`에 설정(DB_HOST/PORT/USER/PASS/NAME/SSL 등)
+  - dev fallback이 켜져 있으면 로그인 없이 게스트로 테스트 가능 (`USE_DEV_FALLBACK=1`)
 
-### 필수 환경변수
-서버 (`server/.env` 등):
-- `TOSS_CLIENT_ID`, `TOSS_CLIENT_SECRET`, `TOSS_TOKEN_URL`, `TOSS_ME_URL`, `TOSS_DECRYPTION_KEY` (+ `TOSS_KEY_FORMAT` 기본 hex)
-- `CORS_ORIGIN` : 허용할 Origin 목록(쉼표 구분). 예: `http://localhost:5173,https://yourdomain`  
-  > 쿠키 인증을 쓰므로 와일드카드 `*`를 쓰지 않습니다.
-- `PORT`(기본 8080), `DB_PATH`(기본 `server/db/dev.sqlite`)
-- `USE_DEV_FALLBACK` : `0`으로 두면 로그인 필수, 빈 값이면 로컬에서 게스트로 테스트 허용
-- `ADMIN_TOKEN` : 일일 집계/포인트 지급 admin API 보호용 토큰
-- `PAYOUT_SIMULATE=1` : 포인트 지급을 실제 호출 없이 성공 처리하는 플래그(테스트용)
-- 토스 포인트 지급용:
-  - `TOSS_PROMOTION_CODE`
-  - `TOSS_PROMOTION_ACCESS_TOKEN` (AppsInToss API bearer 토큰)
-
+### 주요 환경변수
+서버 (`server/.env` 예시):
+```
+PORT=8080
+DB_HOST=...
+DB_PORT=5432
+DB_USER=...
+DB_PASS=...
+DB_NAME=...
+DB_SSL=1                # Cloud SQL 등 TLS 필요 시 1
+DB_POOL_SIZE=10
+CORS_ORIGIN=https://your-frontend
+USE_DEV_FALLBACK=0      # 운영은 0
+ADMIN_TOKEN=...         # /admin/* 보호용
+PAYOUT_SIMULATE=0       # 운영은 0
+TOSS_CLIENT_ID=...
+TOSS_CLIENT_SECRET=...
+TOSS_TOKEN_URL=...
+TOSS_ME_URL=...
+TOSS_DECRYPTION_KEY=...
+TOSS_KEY_FORMAT=hex
+TOSS_PROMOTION_CODE=... # 선택
+TOSS_PROMOTION_ACCESS_TOKEN=... # 선택
+TOSS_DISCONNECT_BASIC_AUTH=Basic ... # 토스 연결 끊기 콜백 검증용
+```
 클라이언트 (`client/.env`):
-- `VITE_API_BASE_URL` : 예) 로컬 서버 `http://localhost:8080`
+```
+VITE_API_BASE_URL=https://<your-cloud-run-url>
+```
+Netlify에 동일 키로 설정해야 빌드/런타임에서 적용됩니다.
 
-### 주요 명령
-- 서버 빌드/실행: `npm run build` / `npm start`
-- 서버 개발: `npm run dev`
-- DB 리셋(스키마+시드): `npm run db:reset` (로컬 DB 변경 시 다시 실행)
-- 클라이언트 빌드/미리보기: `npm run build` / `npm run preview`
+### DB 스키마 (Postgres)
+Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_claims`, `daily_runs`, `daily_scores`, `payout_logs` (SERIAL/DOUBLE PRECISION/TIMESTAMPTZ 버전으로 생성).
 
-### 배포 노트
-- Cloud Run 등 HTTPS 프록시 뒤에 둘 때 `trust proxy` 이미 설정됨.
-- CORS는 `CORS_ORIGIN` allowlist 기반이며 쿠키(`credentials: true`)로 인증합니다.
-- 쿠키 설정: prod에서는 `SameSite=None; Secure`, dev에서는 `SameSite=Lax`.
-- Cloud Scheduler: 매일 22:00 KST `POST /admin/daily-close` 호출 시 `x-admin-token: $ADMIN_TOKEN` 헤더 필요. 포인트 지급은 `POST /admin/process-payouts`로 수동/추가 실행.
+### 배포
+- 서버: Cloud Build/Cloud Run
+  - `cloudbuild.yaml`에서 gcloud run deploy 시 `--set-env-vars`에 필요한 env를 모두 주입합니다.
+  - substitutions는 Cloud Build 트리거에서 실제 값으로 설정(예: _DB_HOST 등).
+  - Cloud Run env에 `USE_DEV_FALLBACK=0`, `PAYOUT_SIMULATE=0`, `CORS_ORIGIN`을 프런트 도메인으로 설정.
+- 프런트: Netlify
+  - `VITE_API_BASE_URL`을 Cloud Run API URL로 설정
+  - SPA 라우팅을 위해 `_redirects`(`/* /index.html 200`) 포함 권장
+  - CORS_ORIGIN에 Netlify/커스텀 도메인을 포함
+
+### 스케줄/이벤트
+- 매일 22:00 KST 집계/리셋: Cloud Scheduler → `POST /admin/daily-close` (헤더 `x-admin-token: $ADMIN_TOKEN`)
+- 포인트 지급 처리: 필요 시 `POST /admin/process-payouts` (동일 헤더)
+- 일일 코인 보충: 40 미만이면 40으로 보충
 
 ### 기능 메모
-- 광고 보상: 중복 키/쿨다운(30초) 체크 후 코인 +20.
-- 추천인: 동일 계정 1회만 청구, 자기 자신 불가. 추천인/청구자 모두 코인 +20, 추천인 포인트 +1.
-- 랭킹: Top 100 + 내 순위/기록 반환.
+- 토스 로그인: 미니앱에서 `TossApp.invoke("login")` → 서버 `/api/auth/toss-login`
+- 광고 보상: 보상형 광고 성공 시 코인 +20(쿨다운/중복키 체크)
+- 추천인: referrer만 +30코인, 자기 자신 불가, 1회 제한
+- 랭킹: Top 100 + 내 순위/기록 반환, 22시 리셋
+- 연결 끊기 콜백: `/api/toss/disconnect` (Authorization 헤더가 `TOSS_DISCONNECT_BASIC_AUTH`와 일치해야 200 OK)
+- 약관: `client/public/terms.html` (서비스 이용약관) URL을 토스 콘솔에 등록
