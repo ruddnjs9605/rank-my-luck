@@ -775,25 +775,38 @@ router.post("/admin/process-payouts", async (req, res) => {
 // ============================================================
 router.post("/toss/disconnect", (req, res) => {
   try {
-    const auth = req.headers["authorization"];
+    const expected = (process.env.TOSS_DISCONNECT_BASIC_AUTH || "").trim();
+    const auth = (req.headers["authorization"] || "").toString().trim();
 
-    // Basic Auth 검증 (환경변수와 다르면 401)
-    if (!TOSS_DISCONNECT_BASIC_AUTH || auth !== TOSS_DISCONNECT_BASIC_AUTH) {
-      console.warn("Invalid toss disconnect auth header:", auth);
+    // env 가 안 들어왔을 때는 로그 남기고 바로 에러
+    if (!expected) {
+      console.error("[TOSS DISCONNECT] MISSING env TOSS_DISCONNECT_BASIC_AUTH");
+      return res.status(500).json({ error: "ENV_MISSING" });
+    }
+
+    // 인증 실패
+    if (auth !== expected) {
+      console.warn("[TOSS DISCONNECT] UNAUTHORIZED", {
+        received: auth,
+        expected,
+      });
       return res.status(401).json({ error: "UNAUTHORIZED" });
     }
 
-    console.log("Toss disconnect callback", {
+    console.log("[TOSS DISCONNECT] OK", {
       headers: req.headers,
       body: req.body,
     });
-    // TODO: 여기서 toss_user_key 기반으로 유저 상태/로그 정리 가능
 
+    // 여기서 필요하면 DB에서 toss_user_key 로 유저 상태 정리
     return res.json({ ok: true });
   } catch (e: any) {
     console.error("disconnect callback error:", e);
     return res.status(500).json({ error: "INTERNAL" });
   }
 });
+
+
+
 
 export default router;
