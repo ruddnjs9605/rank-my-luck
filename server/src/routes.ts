@@ -1,6 +1,6 @@
 // server/src/routes.ts
 import { Router, type Request } from "express";
-import { get, all, run } from "./db.js";
+import { get, all, run, one, query, exec } from "./db.js";
 import type { UserRow } from "./types.js";
 import {
   exchangeCodeForToken,
@@ -63,8 +63,8 @@ async function sendTossPoints(userId: number, points: number) {
   }
 
   // 유저 toss_user_key 조회
-  const u = await get<{ toss_user_key: string | null }>(
-    `SELECT toss_user_key FROM users WHERE id = ?`,
+  const u = await one<{ toss_user_key: string | null }>(
+    `SELECT toss_user_key FROM users WHERE id = $1`,
     [userId]
   );
   if (!u?.toss_user_key) throw new Error("NO_TOSS_USER_KEY");
@@ -122,24 +122,24 @@ async function getCurrentUser(req: Request): Promise<UserRow> {
 
   // 1) 쿠키 기반 유저
   if (uid) {
-    const u = await get<UserRow>(`SELECT * FROM users WHERE id = ?`, [uid]);
+    const u = await one<UserRow>(`SELECT * FROM users WHERE id = $1`, [uid]);
     if (u) return u;
   }
 
   // 2) dev fallback
   if (!USE_DEV_FALLBACK) throw new Error("NO_LOGIN");
 
-  let user = await get<UserRow>(
+  let user = await one<UserRow>(
     `SELECT * FROM users ORDER BY id DESC LIMIT 1`
   );
 
   if (!user) {
     // user가 하나도 없으면 기본 유저 생성
-    await run(
+    await exec(
       `INSERT INTO users (nickname, toss_user_key, best_prob, coins, referral_points)
        VALUES ('게스트', NULL, NULL, 40, 0)`
     );
-    user = await get<UserRow>(
+    user = await one<UserRow>(
       `SELECT * FROM users ORDER BY id DESC LIMIT 1`
     );
   }

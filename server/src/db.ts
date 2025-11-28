@@ -1,42 +1,43 @@
-import sqlite3 from 'sqlite3';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { Pool } from 'pg';
 
-sqlite3.verbose();
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 5432),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  ssl: process.env.DB_SSL === '1' ? { rejectUnauthorized: false } : undefined,
+  max: Number(process.env.DB_POOL_SIZE || 10),
+});
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export async function query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  const res = await pool.query<T>(toPg(sql), params);
+  return res.rows;
+}
 
-// 기본 DB 경로
-const dbPath =
-  process.env.DB_PATH ||
-  path.join(__dirname, '..', 'db', 'dev.sqlite');
+export async function one<T = any>(sql: string, params: any[] = []): Promise<T | undefined> {
+  const rows = await query<T>(sql, params);
+  return rows[0];
+}
 
-export const db = new sqlite3.Database(dbPath);
+export async function exec(sql: string, params: any[] = []): Promise<void> {
+  await pool.query(toPg(sql), params);
+}
 
-export function run(sql: string, params: any[] = []): Promise<void> {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) return reject(err);
-      resolve();
-    });
+export async function close() {
+  await pool.end();
+}
+
+// SQLite 스타일 ? 플레이스홀더를 $1, $2... 로 변환
+function toPg(sql: string): string {
+  let idx = 0;
+  return sql.replace(/\?/g, () => {
+    idx += 1;
+    return `$${idx}`;
   });
 }
 
-export function get<T = any>(sql: string, params: any[] = []): Promise<T | undefined> {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) return reject(err);
-      resolve(row as T | undefined);
-    });
-  });
-}
-
-export function all<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) return reject(err);
-      resolve(rows as T[]);
-    });
-  });
-}
+// 레거시 호환
+export const get = one;
+export const all = query;
+export const run = exec;
