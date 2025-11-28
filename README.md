@@ -47,6 +47,7 @@ Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_cl
 - 서버: Cloud Build/Cloud Run
   - `cloudbuild.yaml`에서 gcloud run deploy 시 `--set-env-vars`에 필요한 env를 모두 주입합니다.
   - substitutions는 Cloud Build 트리거에서 실제 값으로 설정(예: _DB_HOST 등).
+  필요한부분 트리거에서 직접입력으로변경
   - Cloud Run env에 `USE_DEV_FALLBACK=0`, `PAYOUT_SIMULATE=0`, `CORS_ORIGIN`을 프런트 도메인으로 설정.
 - 프런트: Netlify
   - `VITE_API_BASE_URL`을 Cloud Run API URL로 설정
