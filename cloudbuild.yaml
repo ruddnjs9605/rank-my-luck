@@ -15,6 +15,7 @@ steps:
     id: Docker Push
 
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
     args:
       - run
       - deploy
@@ -26,8 +27,28 @@ steps:
       - '--platform'
       - managed
       - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - >-
+        PORT=8080,
+        DB_HOST=${_DB_HOST},
+        DB_PORT=${_DB_PORT},
+        DB_USER=${_DB_USER},
+        DB_PASS=${_DB_PASS},
+        DB_NAME=${_DB_NAME},
+        DB_SSL=${_DB_SSL},
+        CORS_ORIGIN=${_CORS_ORIGIN},
+        ADMIN_TOKEN=${_ADMIN_TOKEN},
+        USE_DEV_FALLBACK=0,
+        PAYOUT_SIMULATE=0,
+        TOSS_CLIENT_ID=${_TOSS_CLIENT_ID},
+        TOSS_CLIENT_SECRET=${_TOSS_CLIENT_SECRET},
+        TOSS_TOKEN_URL=${_TOSS_TOKEN_URL},
+        TOSS_ME_URL=${_TOSS_ME_URL},
+        TOSS_DECRYPTION_KEY=${_TOSS_DECRYPTION_KEY},
+        TOSS_KEY_FORMAT=${_TOSS_KEY_FORMAT},
+        TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
+        TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN}
     id: Cloud Run Deploy
-    entrypoint: gcloud
 
 substitutions:
   _SERVICE: rank-my-luck
