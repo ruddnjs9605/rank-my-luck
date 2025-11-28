@@ -18,8 +18,7 @@ WORKDIR /app
 
 # 환경 변수
 ENV NODE_ENV=production
-ENV PORT=8080
-EXPOSE 8080
+
 
 # 4. 실행에 필요한 패키지 설치 (prod only)
 COPY --from=builder /app/package*.json ./

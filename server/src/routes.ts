@@ -765,4 +765,21 @@ router.post("/admin/process-payouts", async (req, res) => {
   }
 });
 
+// ============================================================
+// 10) 토스 연결 끊기 콜백 (토스 콘솔에 등록)
+// ============================================================
+router.post("/toss/disconnect", (req, res) => {
+  try {
+    console.log("Toss disconnect callback", {
+      headers: req.headers,
+      body: req.body,
+    });
+    // 필요한 경우 여기서 유저 상태 정리/로그 남기기
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error("disconnect callback error:", e);
+    return res.status(500).json({ error: "INTERNAL" });
+  }
+});
+
 export default router;
