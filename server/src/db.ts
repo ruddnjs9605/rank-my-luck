@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type QueryResultRow } from 'pg';
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -10,12 +10,12 @@ const pool = new Pool({
   max: Number(process.env.DB_POOL_SIZE || 10),
 });
 
-export async function query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+export async function query<T extends QueryResultRow = any>(sql: string, params: any[] = []): Promise<T[]> {
   const res = await pool.query<T>(toPg(sql), params);
   return res.rows;
 }
 
-export async function one<T = any>(sql: string, params: any[] = []): Promise<T | undefined> {
+export async function one<T extends QueryResultRow = any>(sql: string, params: any[] = []): Promise<T | undefined> {
   const rows = await query<T>(sql, params);
   return rows[0];
 }
