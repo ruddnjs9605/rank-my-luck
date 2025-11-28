@@ -25,6 +25,11 @@ const PROMO_CODE = process.env.TOSS_PROMOTION_CODE || "";
 const PROMO_ACCESS_TOKEN = process.env.TOSS_PROMOTION_ACCESS_TOKEN || "";
 const APPS_IN_TOSS_API = "https://apps-in-toss-api.toss.im";
 
+// 토스 연결 끊기 콜백 Basic Auth 검증용
+// .env 에서 TOSS_DISCONNECT_BASIC_AUTH=Basic xxx 형태로 넣어둔다.
+const TOSS_DISCONNECT_BASIC_AUTH =
+  process.env.TOSS_DISCONNECT_BASIC_AUTH || "";
+
 // 22:00 KST 기준 일자 계산
 function getKstWindowStart(now = new Date()) {
   const offsetMs = 9 * 60 * 60 * 1000;
@@ -480,7 +485,7 @@ router.post("/referral/claim", async (req, res) => {
       [u.id, refId]
     );
 
-    // 추천인/신규 모두 코인 +20, 추천 포인트 +1
+    // 추천인/신규 모두 코인 +30, 추천 포인트 +1
     await run(
       `UPDATE users
        SET referral_points = COALESCE(referral_points, 0) + 1,
@@ -770,11 +775,20 @@ router.post("/admin/process-payouts", async (req, res) => {
 // ============================================================
 router.post("/toss/disconnect", (req, res) => {
   try {
+    const auth = req.headers["authorization"];
+
+    // Basic Auth 검증 (환경변수와 다르면 401)
+    if (!TOSS_DISCONNECT_BASIC_AUTH || auth !== TOSS_DISCONNECT_BASIC_AUTH) {
+      console.warn("Invalid toss disconnect auth header:", auth);
+      return res.status(401).json({ error: "UNAUTHORIZED" });
+    }
+
     console.log("Toss disconnect callback", {
       headers: req.headers,
       body: req.body,
     });
-    // 필요한 경우 여기서 유저 상태 정리/로그 남기기
+    // TODO: 여기서 toss_user_key 기반으로 유저 상태/로그 정리 가능
+
     return res.json({ ok: true });
   } catch (e: any) {
     console.error("disconnect callback error:", e);
