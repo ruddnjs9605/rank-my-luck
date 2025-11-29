@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Nickname from "./pages/Nickname";
 import Play from "./pages/Play";
 import Leaderboard from "./pages/Leaderboard";
+import History from "./pages/History";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/nickname" element={<Nickname />} />
           <Route path="/play" element={<Play />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/history" element={<History />} />
         </Routes>
       </div>
     </>

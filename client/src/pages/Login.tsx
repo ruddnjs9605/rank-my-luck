@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
-import { tossLogin } from "../lib/api";
+import { tossLoginEncrypted } from "../lib/api";
 
 export default function Login() {
   const nav = useNavigate();
@@ -22,12 +22,12 @@ export default function Login() {
       }
 
       // 2) 토스 로그인 요청 (네이티브 호출)
-      const { authorizationCode, referrer } = await (window as any).TossApp.invoke(
+      const { encryptedUser, referrer } = await (window as any).TossApp.invoke(
         "login"
       );
 
-      // 3) 우리 서버에 로그인 요청
-      const res = await tossLogin(authorizationCode, referrer);
+      // 3) 우리 서버에 로그인 요청 (암호화 payload 전달)
+      const res = await tossLoginEncrypted(encryptedUser, referrer);
 
       // ✅ 타입 가드: 에러 응답인 경우 먼저 처리
       if ("error" in res) {

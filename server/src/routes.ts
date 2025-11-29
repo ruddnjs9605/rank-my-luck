@@ -2,11 +2,7 @@
 import { Router, type Request } from "express";
 import { get, all, run, one, query, exec } from "./db.js";
 import type { UserRow } from "./types.js";
-import {
-  exchangeCodeForToken,
-  fetchTossMe,
-  decryptTossUser,
-} from "./toss.js";
+import { decryptTossUser } from "./toss.js";
 import axios from "axios";
 
 const router = Router();
@@ -157,35 +153,19 @@ async function getCurrentUser(req: Request): Promise<UserRow> {
 // ============================================================
 router.post("/auth/toss-login", async (req, res) => {
   try {
-    const { authorizationCode, referrer } = req.body as {
-      authorizationCode?: string;
+    const { encryptedUser, referrer } = req.body as {
+      encryptedUser?: any;
       referrer?: string | null;
     };
 
-    if (!authorizationCode) {
+    if (!encryptedUser) {
       return res
         .status(400)
-        .json({ error: "NO_CODE", message: "authorizationCode가 필요합니다." });
+        .json({ error: "NO_PAYLOAD", message: "encryptedUser가 필요합니다." });
     }
 
-    // 1) Authorization Code -> Access Token
-    const tokenResp = await exchangeCodeForToken(authorizationCode);
-    const accessToken =
-      (tokenResp as any).accessToken ||
-      (tokenResp as any).access_token;
-
-    if (!accessToken) {
-      return res.status(500).json({
-        error: "NO_ACCESS_TOKEN",
-        message: "토스 accessToken 획득 실패",
-      });
-    }
-
-    // 2) /me 호출 → 암호화 payload 획득
-    const encrypted = await fetchTossMe(accessToken);
-
-    // 3) 복호화 → tossUserKey 획득
-    const dec = await decryptTossUser(encrypted);
+    // 암호화 payload 복호화 → tossUserKey 획득
+    const dec = await decryptTossUser(encryptedUser);
     const tossUserKey = dec.tossUserKey;
 
     // 4) DB에서 찾기
@@ -667,15 +647,36 @@ router.post("/admin/daily-close", async (req, res) => {
       rank += 1;
     }
 
-    // 상금 풀 계산
-    const prizePool = participants >= PRIZE_THRESHOLD
-      ? Math.min(participants, PRIZE_MAX)
-      : 0;
-    const winner = topRows[0];
+    // 경품 규칙 (참여자 수 기반, 기프티콘)
+    const prizeRule = (() => {
+      if (participants < 1000) return { label: null as string | null, value: 0, qty: 0 };
+      if (participants >= 50000) return { label: "스타벅스 아메리카노 5000", value: 5000, qty: 10 };
+      if (participants >= 10000) {
+        const extra = Math.floor((participants - 10000) / 5000); // 0,1,2...
+        const qty = Math.min(2 + extra, 10);
+        return { label: "스타벅스 아메리카노 5000", value: 5000, qty };
+      }
+      if (participants >= 5000) return { label: "스타벅스 아메리카노 5000", value: 5000, qty: 1 };
+      return { label: "편의점 상품권 1000", value: 1000, qty: 1 };
+    })();
 
-    const payoutStatus = prizePool > 0 && winner ? "PENDING" : "SKIPPED";
-    const winnerId = prizePool > 0 && winner ? winner.user_id : null;
-    const winnerBest = prizePool > 0 && winner ? winner.best_prob : null;
+    // Top 100 중에서 랜덤 추첨
+    const winners: { user_id: number; best_prob: number }[] = [];
+    if (prizeRule.qty > 0 && topRows.length > 0) {
+      const indices = topRows.map((_, i) => i);
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      const pick = indices.slice(0, Math.min(prizeRule.qty, topRows.length));
+      for (const idx of pick) winners.push(topRows[idx]);
+    }
+
+    const winner = winners[0];
+    const payoutStatus = prizeRule.qty > 0 && winners.length > 0 ? "PENDING" : "SKIPPED";
+    const winnerId = prizeRule.qty > 0 && winner ? winner.user_id : null;
+    const winnerBest = prizeRule.qty > 0 && winner ? winner.best_prob : null;
+    const prizePool = prizeRule.qty; // 경품 개수
 
     await run(
       `INSERT INTO daily_runs
@@ -684,12 +685,20 @@ router.post("/admin/daily-close", async (req, res) => {
       [labelDate, participants, prizePool, winnerId, winnerBest, payoutStatus]
     );
 
-    if (prizePool > 0 && winner) {
-      await run(
-        `INSERT INTO payout_logs (date, user_id, points, status)
-         VALUES (?, ?, ?, ?)`,
-        [labelDate, winner.user_id, prizePool, "PENDING"]
-      );
+    if (prizeRule.qty > 0 && winners.length > 0) {
+      for (const w of winners) {
+        await run(
+          `INSERT INTO payout_logs (date, user_id, points, status, request_payload)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            labelDate,
+            w.user_id,
+            prizeRule.value, // 기프티콘 금액
+            "PENDING",
+            JSON.stringify({ prize: prizeRule.label }),
+          ]
+        );
+      }
     }
 
     // 오늘 시작을 위해 best_prob 초기화
@@ -722,7 +731,83 @@ router.post("/admin/daily-close", async (req, res) => {
 });
 
 // ============================================================
-// 9) 포인트 지급 처리 (수동/스케줄러)
+// 9) 과거 일자 목록 (daily_scores 기준)
+// ============================================================
+router.get("/history/dates", async (_req, res) => {
+  const dates = await all<{ date: string }>(
+    `SELECT DISTINCT date
+     FROM daily_scores
+     ORDER BY date DESC
+     LIMIT 30`
+  );
+  return res.json({ ok: true, dates: dates.map((d) => d.date) });
+});
+
+// ============================================================
+// 10) 특정 일자 Top100 랭킹
+// ============================================================
+router.get("/history/:date/ranking", async (req, res) => {
+  const { date } = req.params;
+  const rows = await all<{
+    rank: number;
+    best_prob: number;
+    nickname: string | null;
+  }>(
+    `SELECT ds.rank, ds.best_prob, u.nickname
+     FROM daily_scores ds
+     LEFT JOIN users u ON ds.user_id = u.id
+     WHERE ds.date = ?
+     ORDER BY ds.rank ASC
+     LIMIT 100`,
+    [date]
+  );
+  return res.json({ ok: true, rows });
+});
+
+// ============================================================
+// 11) 특정 일자 경품 당첨자
+// ============================================================
+router.get("/history/:date/winners", async (req, res) => {
+  const { date } = req.params;
+  const rows = await all<{
+    user_id: number;
+    nickname: string | null;
+    points: number;
+    request_payload: string | null;
+  }>(
+    `SELECT pl.user_id,
+            u.nickname,
+            pl.points,
+            pl.request_payload
+     FROM payout_logs pl
+     LEFT JOIN users u ON pl.user_id = u.id
+     WHERE pl.date = ?
+     ORDER BY pl.id ASC`,
+    [date]
+  );
+
+  // request_payload에 prize label이 들어있으면 파싱
+  const winners = rows.map((r) => {
+    let prize: string | null = null;
+    if (r.request_payload) {
+      try {
+        const parsed = JSON.parse(r.request_payload);
+        prize = parsed?.prize ?? null;
+      } catch {}
+    }
+    return {
+      user_id: r.user_id,
+      nickname: r.nickname,
+      amount: r.points,
+      prize,
+    };
+  });
+
+  return res.json({ ok: true, winners });
+});
+
+// ============================================================
+// 12) 포인트 지급 처리 (수동/스케줄러)
 // ============================================================
 router.post("/admin/process-payouts", async (req, res) => {
   if (!ADMIN_TOKEN || req.headers["x-admin-token"] !== ADMIN_TOKEN) {
@@ -733,6 +818,7 @@ router.post("/admin/process-payouts", async (req, res) => {
       id: number;
       user_id: number;
       points: number;
+      request_payload: string | null;
     }>(
       `SELECT id, user_id, points
        FROM payout_logs
@@ -741,26 +827,15 @@ router.post("/admin/process-payouts", async (req, res) => {
 
     const results: any[] = [];
     for (const p of pending) {
-      try {
-        const resp = await sendTossPoints(p.user_id, p.points);
-        await run(
-          `UPDATE payout_logs
-           SET status = 'SENT',
-               response_payload = ?
-           WHERE id = ?`,
-          [JSON.stringify(resp), p.id]
-        );
-        results.push({ id: p.id, status: "SENT" });
-      } catch (err: any) {
-        await run(
-          `UPDATE payout_logs
-           SET status = 'FAILED',
-               response_payload = ?
-           WHERE id = ?`,
-          [JSON.stringify({ message: err?.message || String(err) }), p.id]
-        );
-        results.push({ id: p.id, status: "FAILED", message: err?.message });
-      }
+      // 포인트 지급 대신 기프티콘 수동 지급. 여기서는 처리하지 않고 SKIPPED로 표기.
+      await run(
+        `UPDATE payout_logs
+         SET status = 'SKIPPED',
+             response_payload = ?
+         WHERE id = ?`,
+        [JSON.stringify({ message: "MANUAL_GIFTCARD", request: p.request_payload || null }), p.id]
+      );
+      results.push({ id: p.id, status: "SKIPPED", note: "기프티콘 수동 지급 대상" });
     }
 
     return res.json({ ok: true, processed: results });

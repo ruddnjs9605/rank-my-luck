@@ -117,6 +117,22 @@ export function fetchRanking() {
   }>("/api/ranking");
 }
 
+export function fetchHistoryDates() {
+  return api.get<{ dates: string[] }>("/api/history/dates");
+}
+
+export function fetchHistoryRanking(date: string) {
+  return api.get<{ rows: { rank: number; best_prob: number; nickname: string | null }[] }>(
+    `/api/history/${date}/ranking`
+  );
+}
+
+export function fetchHistoryWinners(date: string) {
+  return api.get<{ winners: { user_id: number; nickname: string | null; amount: number; prize: string | null }[] }>(
+    `/api/history/${date}/winners`
+  );
+}
+
 // ============================
 // 7) 지갑(코인)
 // ============================
@@ -128,19 +144,15 @@ export function wallet() {
 // 8) 토스 로그인 (authorizationCode 서버로 전달)
 // ============================
 export type TossLoginResponse =
-  | {
-      ok: true;
-      hasNickname: boolean;
-      nickname: string | null;
-    }
-  | {
-      error: string;
-      message: string;
-    };
+  | { ok: true; hasNickname: boolean; nickname: string | null }
+  | { error: string; message: string };
 
-export function tossLogin(authorizationCode: string, referrer?: string | null) {
+export function tossLoginEncrypted(
+  encryptedUser: any,
+  referrer?: string | null
+) {
   return api.post<TossLoginResponse>("/api/auth/toss-login", {
-    authorizationCode,
+    encryptedUser,
     referrer: referrer ?? null,
   });
 }

@@ -24,6 +24,7 @@ export default function TopBar(){
       <nav className="topbar-nav" style={{alignItems:"center", gap:12}}>
         <Link to="/play" className={`topbar-link ${pathname==="/play"?"active":""}`}>플레이</Link>
         <Link to="/leaderboard" className={`topbar-link ${pathname==="/leaderboard"?"active":""}`}>랭킹</Link>
+        <Link to="/history" className={`topbar-link ${pathname==="/history"?"active":""}`}>기록</Link>
         <div style={{
           display:"inline-flex", alignItems:"center",
           padding:"4px 8px", border:"1px solid var(--border)",
