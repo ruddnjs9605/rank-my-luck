@@ -1,6 +1,6 @@
 ## Rank My Luck
 
-토스 미니앱용 확률 게임. 프런트는 Vite/React, 백엔드는 Express + PostgreSQL(Cloud SQL)입니다.
+토스 미니앱용 나의 운을 확인해보는 앱입니다. 프런트는 Vite/React, 백엔드는 Express + PostgreSQL(Cloud SQL)입니다.
 
 ### 로컬 개발
 - 요구: Node 18+, psql
