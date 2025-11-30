@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { fetchHistoryDates, fetchHistoryRanking, fetchHistoryWinners } from "../lib/api";
-import { fmt } from "./Leaderboard"; // reuse fmt? but fmt is not exported. We'll reimplement locally.
 
 const fmtProb = (p: number) => {
   const pct = p * 100;
