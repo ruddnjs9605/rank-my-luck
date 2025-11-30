@@ -7,7 +7,7 @@ import Play from "./pages/Play";
 import Leaderboard from "./pages/Leaderboard";
 import History from "./pages/History";
 
-const DEFAULT_PATH = "/play";
+const DEFAULT_PATH = "/login";
 
 export default function App() {
   return (
