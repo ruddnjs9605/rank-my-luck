@@ -13,7 +13,20 @@ steps:
       - push
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
-  # 3) Deploy to Cloud Run (Secret File Mount: 유효한 문자열 Key를 사용하도록 재시도)
+  # 2.5) ⚠️ Secret 설정 초기화 (핵심 추가)
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - '${_SERVICE}'
+      - '--region'
+      - '${_REGION}'
+      - '--clear-secrets' # 모든 Secret 설정을 명시적으로 제거
+    id: Clear Secrets
+  
+  # 3) Deploy to Cloud Run (Secret Volume Mount를 단순 디렉토리 마운트로 회귀)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -29,12 +42,10 @@ steps:
       - managed
       - '--allow-unauthenticated'
       
-      # ⚠️ 최종 시도: Secret Key 유효성 검사 오류를 해결하기 위해 Secret 이름의 일부를 Key로 사용
-      # Secret Manager 버전이 아닌, Key의 유효한 이름(rankmyluck-cert, rankmyluck-key)을 사용합니다.
-      - '--set-secrets'
+      - '--set-secrets' 
       - |
-        /etc/secrets/toss_cert/rankmyluck-mtls-cert=rankmyluck-mtls-cert:rankmyluck-cert,
-        /etc/secrets/toss_key/rankmyluck-mtls-key=rankmyluck-mtls-key:rankmyluck-key
+        /etc/secrets/toss_cert=rankmyluck-mtls-cert:1,
+        /etc/secrets/toss_key=rankmyluck-mtls-key:1
       
       - '--set-env-vars'
       - |
