@@ -15,24 +15,29 @@ steps:
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
 
-  # 3) Deploy to Cloud Run
+  # 3) Deploy to Cloud Run (Secret → 파일로 마운트)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
       - run
       - deploy
       - '${_SERVICE}'
-      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
-      - '--region=${_REGION}'
-      - '--platform=managed'
+      - '--image'
+      - >-
+        ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - managed
       - '--allow-unauthenticated'
 
-      # === Secret 파일 mount ===
-      # Secret Manager에 저장한 파일명이 그대로 mount됨
-      - '--update-secrets=rankmyluck_public.crt=rankmyluck-mtls-cert:1'
-      - '--update-secrets=rankmyluck_private.key=rankmyluck-mtls-key:1'
+      # ⬇⬇⬇ 인증서 / 키를 Cloud Run에 "파일로" 생성
+      - '--update-secrets'
+      - |
+        /secrets/rankmyluck_public.crt=rankmyluck-mtls-cert:1,
+        /secrets/rankmyluck_private.key=rankmyluck-mtls-key:1
 
-      # === ENV 설정 ===
+      # ⬇⬇⬇ 앱 ENV 설정
       - '--set-env-vars'
       - |
         DB_HOST=${_DB_HOST},
@@ -47,11 +52,11 @@ steps:
         PAYOUT_SIMULATE=0,
         TOSS_DECRYPTION_KEY=${_TOSS_DECRYPTION_KEY},
         TOSS_KEY_FORMAT=${_TOSS_KEY_FORMAT},
+        TOSS_MTLS_CERT_PATH=/secrets/rankmyluck_public.crt,
+        TOSS_MTLS_KEY_PATH=/secrets/rankmyluck_private.key,
         TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
         TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},
-        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH},
-        TOSS_MTLS_CERT_PATH=/secrets/rankmyluck_public.crt,
-        TOSS_MTLS_KEY_PATH=/secrets/rankmyluck_private.key
+        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH}
 
 substitutions:
   _SERVICE: rank-my-luck
