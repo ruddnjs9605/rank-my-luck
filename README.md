@@ -10,25 +10,7 @@
   - dev fallback이 켜져 있으면 로그인 없이 게스트로 테스트 가능 (`USE_DEV_FALLBACK=1`)
 
 ### 주요 환경변수
-서버 (`server/.env` 예시):
-```
-PORT=8080
-DB_HOST=...
-DB_PORT=5432
-DB_USER=...
-DB_PASS=...
-DB_NAME=...
-DB_SSL=1                # Cloud SQL 등 TLS 필요 시 1
-DB_POOL_SIZE=10
-CORS_ORIGIN=https://your-frontend
-USE_DEV_FALLBACK=0      # 운영은 0
-ADMIN_TOKEN=...         # /admin/* 보호용
-PAYOUT_SIMULATE=0       # 운영은 0
-TOSS_DECRYPTION_KEY=...
-TOSS_KEY_FORMAT=hex
-TOSS_PROMOTION_CODE=... # 선택
-TOSS_PROMOTION_ACCESS_TOKEN=... # 선택
-TOSS_DISCONNECT_BASIC_AUTH=Basic ... # 토스 연결 끊기 콜백 검증용
+
 ```
 클라이언트 (`client/.env`):
 ```

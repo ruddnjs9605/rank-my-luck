@@ -3,40 +3,30 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import { tossLoginEncrypted } from "../lib/api";
+import { useAppBridge } from "@apps-in-toss/web-bridge";
 
 export default function Login() {
   const nav = useNavigate();
+  const bridge = useAppBridge();
   const [loading, setLoading] = useState(false);
 
   const handleTossLogin = async () => {
     try {
       setLoading(true);
 
-      // 1) 토스 미니앱 환경 체크
-      const isToss = Boolean(
-        (window as any).TossApp || (window as any).Toss
-      );
-      if (!isToss) {
-        alert("토스 미니앱 환경이 아닙니다!");
-        return;
-      }
+      // 1) 앱인토스 공식 로그인 호출
+      const { encryptedUser, referrer } = await bridge.appLogin();
 
-      // 2) 토스 로그인 요청 (네이티브 호출)
-      const { encryptedUser, referrer } = await (window as any).TossApp.invoke(
-        "login"
-      );
-
-      // 3) 우리 서버에 로그인 요청 (암호화 payload 전달)
+      // 2) 서버에 로그인 요청
       const res = await tossLoginEncrypted(encryptedUser, referrer);
 
-      // ✅ 타입 가드: 에러 응답인 경우 먼저 처리
       if ("error" in res) {
         console.error("tossLogin error:", res);
         alert(res.message || "토스 로그인 API 오류가 발생했어요.");
         return;
       }
 
-      // ✅ 여기부터는 hasNickname 이 항상 존재하는 성공 응답 타입
+      // 3) 닉네임 여부에 따라 라우팅
       if (res.hasNickname) {
         nav("/play");
       } else {
@@ -45,6 +35,7 @@ export default function Login() {
     } catch (e: any) {
       console.error(e);
       alert("토스 로그인 실패: " + String(e?.message || e));
+
     } finally {
       setLoading(false);
     }
@@ -64,9 +55,6 @@ export default function Login() {
           <Button full onClick={handleTossLogin} disabled={loading}>
             {loading ? "로그인 중…" : "토스로 로그인"}
           </Button>
-          <div className="login-hint">
-            토스 미니앱에서 실행 중인지 확인해주세요.
-          </div>
         </div>
       </div>
     </div>
