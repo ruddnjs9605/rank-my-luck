@@ -60,3 +60,7 @@ Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_cl
 - 랭킹: Top 100 + 내 순위/기록 반환, 22시 리셋
 - 연결 끊기 콜백: `/api/toss/disconnect` (Authorization 헤더가 `TOSS_DISCONNECT_BASIC_AUTH`와 일치해야 200 OK)
 - 약관: `client/public/terms.html` (서비스 이용약관) URL을 토스 콘솔에 등록
+
+
+
+변경한 내역이 많아서 정리 하기 힘듬
