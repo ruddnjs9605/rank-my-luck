@@ -67,3 +67,6 @@ Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_cl
 
 CORS_ORIGIN 을 하나로만 저장하기
 재배포 버전 222
+
+이게 몇번쨰 배포인지 
+왜 구글 클라우드 배포도 안되냐
