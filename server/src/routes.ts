@@ -220,7 +220,19 @@ router.post("/auth/toss-login", async (req, res) => {
       nickname: user!.nickname,
     });
   } catch (e: any) {
-    console.error("toss-login error:", e);
+    // 여기 디버그 로그를 자세히!
+    console.error("toss-login error raw:", {
+      message: e?.message,
+      code: e?.code,
+      errno: e?.errno,
+      syscall: e?.syscall,
+      hostname: e?.hostname,
+      // TLS 에러면 대부분 여기까지 나오고,
+      // HTTP 400/401 이면 response 쪽이 채워져요.
+      responseStatus: e?.response?.status,
+      responseData: e?.response?.data,
+    });
+
     return res.status(500).json({
       error: "TOSS_LOGIN_FAIL",
       message: e?.message || String(e),
