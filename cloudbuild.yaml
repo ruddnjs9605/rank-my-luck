@@ -1,4 +1,5 @@
 steps:
+  # 1) Docker Build
   - name: gcr.io/cloud-builders/docker
     args:
       - build
@@ -8,12 +9,14 @@ steps:
       - server
     id: Build
 
+  # 2) Docker Push
   - name: gcr.io/cloud-builders/docker
     args:
       - push
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
 
+  # 3) Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -21,14 +24,15 @@ steps:
       - deploy
       - '${_SERVICE}'
       - '--image'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
+      - >-
+        ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
       - '--region'
       - '${_REGION}'
       - '--platform'
       - managed
       - '--allow-unauthenticated'
       - '--set-env-vars'
-      - >-
+      - |
         DB_HOST=${_DB_HOST},
         DB_PORT=${_DB_PORT},
         DB_USER=${_DB_USER},
@@ -43,8 +47,9 @@ steps:
         TOSS_KEY_FORMAT=${_TOSS_KEY_FORMAT},
         TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
         TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},
-        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH}
-    id: Cloud Run Deploy
+        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH},
+        TOSS_MTLS_CERT_PATH=/etc/secrets/toss/cert.pem,
+        TOSS_MTLS_KEY_PATH=/etc/secrets/toss/key.pem
 
 substitutions:
   _SERVICE: rank-my-luck
@@ -53,7 +58,9 @@ substitutions:
   _REGION: us-central1
 
 timeout: 1200s
+
 options:
   logging: CLOUD_LOGGING_ONLY
+
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
