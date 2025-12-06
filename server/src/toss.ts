@@ -20,8 +20,8 @@ const KEY_FORMAT = (process.env.TOSS_KEY_FORMAT || 'hex') as 'hex' | 'base64';
 
 // 🔐 mTLS 경로 = Cloud Run 환경변수로 전달됨
 // ex) /etc/secrets/toss_cert/rankmyluck_public.crt
-const CERT_PATH = process.env.TOSS_CLIENT_CERT_PATH;
-const KEY_PATH = process.env.TOSS_CLIENT_KEY_PATH;
+const CERT_PATH = process.env.TOSS_MTLS_CERT_PATH;
+const KEY_PATH = process.env.TOSS_MTLS_KEY_PATH;
 
 let httpsAgent: https.Agent | undefined = undefined;
 
