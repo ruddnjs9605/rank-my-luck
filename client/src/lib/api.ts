@@ -147,12 +147,12 @@ export type TossLoginResponse =
   | { ok: true; hasNickname: boolean; nickname: string | null }
   | { error: string; message: string };
 
-export function tossLoginEncrypted(
-  encryptedUser: any,
+export function tossLoginWithCode(
+  authorizationCode: string,
   referrer?: string | null
 ) {
   return api.post<TossLoginResponse>("/api/auth/toss-login", {
-    encryptedUser,
+    authorizationCode,
     referrer: referrer ?? null,
   });
 }

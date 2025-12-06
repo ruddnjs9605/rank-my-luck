@@ -10,13 +10,29 @@
   - dev fallback이 켜져 있으면 로그인 없이 게스트로 테스트 가능 (`USE_DEV_FALLBACK=1`)
 
 ### 주요 환경변수
-
+- 클라이언트(`client/.env`): `VITE_API_BASE_URL=https://<cloud-run-url>` (Netlify에도 동일 설정)
+- 서버(`server/.env` 예시):
 ```
-클라이언트 (`client/.env`):
+PORT=8080
+DB_HOST=...
+DB_PORT=5432
+DB_USER=...
+DB_PASS=...
+DB_NAME=...
+DB_SSL=1
+DB_POOL_SIZE=10
+CORS_ORIGIN=https://your-frontend
+USE_DEV_FALLBACK=0
+ADMIN_TOKEN=...
+PAYOUT_SIMULATE=0
+TOSS_TOKEN_URL=https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token
+TOSS_ME_URL=https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me
+TOSS_DECRYPTION_KEY=...
+TOSS_KEY_FORMAT=hex
+TOSS_PROMOTION_CODE=...      # 선택
+TOSS_PROMOTION_ACCESS_TOKEN=... # 선택
+TOSS_DISCONNECT_BASIC_AUTH=Basic ...
 ```
-VITE_API_BASE_URL=https://<your-cloud-run-url>
-```
-Netlify에 동일 키로 설정해야 빌드/런타임에서 적용됩니다.
 
 ### DB 스키마 (Postgres)
 Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_claims`, `daily_runs`, `daily_scores`, `payout_logs` (SERIAL/DOUBLE PRECISION/TIMESTAMPTZ 버전으로 생성).
@@ -38,7 +54,7 @@ Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_cl
 - 일일 코인 보충: 40 미만이면 40으로 보충
 
 ### 기능 메모
-- 토스 로그인: 미니앱에서 `TossApp.invoke("login")` → 서버 `/api/auth/toss-login`
+- 토스 로그인: 미니앱에서 `appLogin()` → 서버 `/api/auth/toss-login`(authorizationCode + referrer)
 - 광고 보상: 보상형 광고 성공 시 코인 +20(쿨다운/중복키 체크)
 - 추천인: referrer만 +30코인, 자기 자신 불가, 1회 제한
 - 랭킹: Top 100 + 내 순위/기록 반환, 22시 리셋

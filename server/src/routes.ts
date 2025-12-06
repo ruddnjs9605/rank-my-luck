@@ -2,7 +2,7 @@
 import { Router, type Request } from "express";
 import { get, all, run, one, query, exec } from "./db.js";
 import type { UserRow } from "./types.js";
-import { decryptTossUser } from "./toss.js";
+import { decryptTossUser, exchangeCodeForToken, fetchTossMe } from "./toss.js";
 import axios from "axios";
 
 const router = Router();
@@ -153,19 +153,35 @@ async function getCurrentUser(req: Request): Promise<UserRow> {
 // ============================================================
 router.post("/auth/toss-login", async (req, res) => {
   try {
-    const { encryptedUser, referrer } = req.body as {
-      encryptedUser?: any;
+    const { authorizationCode, referrer } = req.body as {
+      authorizationCode?: string;
       referrer?: string | null;
     };
 
-    if (!encryptedUser) {
+    if (!authorizationCode) {
       return res
         .status(400)
-        .json({ error: "NO_PAYLOAD", message: "encryptedUser가 필요합니다." });
+        .json({ error: "NO_CODE", message: "authorizationCode가 필요합니다." });
     }
 
-    // 암호화 payload 복호화 → tossUserKey 획득
-    const dec = await decryptTossUser(encryptedUser);
+    // 1) Authorization Code -> Access Token
+    const tokenResp = await exchangeCodeForToken(authorizationCode, referrer ?? null);
+    const accessToken =
+      (tokenResp as any).accessToken ||
+      (tokenResp as any).access_token;
+
+    if (!accessToken) {
+      return res.status(500).json({
+        error: "NO_ACCESS_TOKEN",
+        message: "토스 accessToken 획득 실패",
+      });
+    }
+
+    // 2) /me 호출 → 암호화 payload 획득
+    const encrypted = await fetchTossMe(accessToken);
+
+    // 3) 복호화 → tossUserKey 획득
+    const dec = await decryptTossUser(encrypted);
     const tossUserKey = dec.tossUserKey;
 
     // 4) DB에서 찾기

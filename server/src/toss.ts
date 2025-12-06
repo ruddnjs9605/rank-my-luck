@@ -1,6 +1,9 @@
+import axios from 'axios';
 import { createDecipheriv } from 'node:crypto';
 import { TossEncryptedPayload, EncryptedField } from './types.js';
 
+const TOKEN_URL = process.env.TOSS_TOKEN_URL || 'https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token';
+const ME_URL = process.env.TOSS_ME_URL || 'https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me';
 const KEY_RAW = process.env.TOSS_DECRYPTION_KEY!;
 const KEY_FORMAT = (process.env.TOSS_KEY_FORMAT || 'hex') as 'hex' | 'base64';
 
@@ -24,6 +27,28 @@ function decryptField(f: EncryptedField) {
 
   const dec = Buffer.concat([decipher.update(data), decipher.final()]);
   return dec.toString('utf8');
+}
+
+// Authorization Code -> Token
+export async function exchangeCodeForToken(code: string, referrer?: string | null) {
+  const resp = await axios.post(
+    TOKEN_URL,
+    {
+      authorizationCode: code,
+      referrer,
+    },
+    { timeout: 10000 }
+  );
+  return resp.data;
+}
+
+// GET /me (암호화된 payload)
+export async function fetchTossMe(accessToken: string): Promise<TossEncryptedPayload> {
+  const resp = await axios.get(ME_URL, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    timeout: 10000
+  });
+  return resp.data as TossEncryptedPayload;
 }
 
 // 토스 유저 표준화
