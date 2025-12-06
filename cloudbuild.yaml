@@ -4,8 +4,7 @@ steps:
     args:
       - build
       - '--file=server/Dockerfile'
-      - >-
-        --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
+      - '--tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
       - server
     id: Build
   # 2) Docker Push
@@ -14,7 +13,7 @@ steps:
       - push
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
-  # 3) Deploy to Cloud Run (Secret File Mount 형식, 버전 1 사용)
+  # 3) Deploy to Cloud Run (Secret Volume Mount를 --set-volumes로 정의)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -29,10 +28,18 @@ steps:
       - '--platform'
       - managed
       - '--allow-unauthenticated'
-      - '--set-secrets' # Secret File Mount: 경로/파일명=Secret:1
+      
+      # ⚠️ 핵심 수정: --set-secrets 대신 --set-volumes 사용
+      # Volume 1: cert (rankmyluck-mtls-cert)
+      - '--set-volumes'
       - |
-        /etc/secrets/toss_cert/rankmyluck-mtls-cert=rankmyluck-mtls-cert:1,
-        /etc/secrets/toss_key/rankmyluck-mtls-key=rankmyluck-mtls-key:1
+        /etc/secrets/toss_cert=secret:rankmyluck-mtls-cert:items=[{key:latest,path:rankmyluck-mtls-cert}]
+      
+      # Volume 2: key (rankmyluck-mtls-key)
+      - '--set-volumes'
+      - |
+        /etc/secrets/toss_key=secret:rankmyluck-mtls-key:items=[{key:latest,path:rankmyluck-mtls-key}]
+      
       - '--set-env-vars'
       - |
         DB_HOST=${_DB_HOST},
@@ -58,10 +65,6 @@ substitutions:
   _IMAGE: rank-my-luck
   _REGION: us-central1
   # Cloud Build 실행 시 반드시 제공되어야 하는 변수들
-  # 예시:
-  # _DB_HOST: 34.123.34.118
-  # _DB_PORT: '5432'
-  # ... (나머지 환경 변수 값)
 timeout: 1200s
 options:
   logging: CLOUD_LOGGING_ONLY
