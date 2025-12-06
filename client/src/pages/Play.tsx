@@ -70,11 +70,7 @@ export default function Play() {
         const storedNick = localStorage.getItem("nickname") || undefined;
         const nick = p?.nickname ?? storedNick;
 
-        if (!nick) {
-          // 서버/로컬 어디에도 닉네임이 없으면 닉네임 설정 페이지로
-          nav("/nickname");
-          return;
-        }
+        if (!nick) return nav("/login");
 
         setBest(p.best_score ?? 1.0);
         setNickname(nick);
@@ -83,17 +79,7 @@ export default function Play() {
         setRot(0);
       } catch (e) {
         console.error("me() error:", e);
-        // 서버 호출 실패 시에도 localStorage 닉네임이 있으면 플레이 허용
-        const storedNick = localStorage.getItem("nickname") || undefined;
-        if (!storedNick) {
-          nav("/nickname");
-          return;
-        }
-        setBest(1.0);
-        setNickname(storedNick);
-        setCoins(0);
-        setLoaded(true);
-        setRot(0);
+        return nav("/login");
       }
 
       // 광고 가능 여부 확인 (토스 미니앱)

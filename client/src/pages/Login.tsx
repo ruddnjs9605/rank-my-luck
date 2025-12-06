@@ -3,11 +3,10 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import { tossLoginEncrypted } from "../lib/api";
-import { useAppBridge } from "@apps-in-toss/web-bridge";
+import { appLogin } from "@apps-in-toss/web-bridge";
 
 export default function Login() {
   const nav = useNavigate();
-  const bridge = useAppBridge();
   const [loading, setLoading] = useState(false);
 
   const handleTossLogin = async () => {
@@ -15,7 +14,7 @@ export default function Login() {
       setLoading(true);
 
       // 1) 앱인토스 공식 로그인 호출
-      const { encryptedUser, referrer } = await bridge.appLogin();
+      const { encryptedUser, referrer } = await appLogin();
 
       // 2) 서버에 로그인 요청
       const res = await tossLoginEncrypted(encryptedUser, referrer);
