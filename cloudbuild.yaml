@@ -16,7 +16,7 @@ steps:
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
 
-  # 3) Deploy to Cloud Run with Secrets (mTLS cert/key mount)
+  # 3) Deploy to Cloud Run (NO secret mount here)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -31,8 +31,6 @@ steps:
       - '--platform'
       - managed
       - '--allow-unauthenticated'
-
-      # === ENV variables ===
       - '--set-env-vars'
       - |
         DB_HOST=${_DB_HOST},
@@ -50,14 +48,8 @@ steps:
         TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
         TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},
         TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH},
-        TOSS_MTLS_CERT_PATH=/etc/secrets/toss_cert/cert.pem,
-        TOSS_MTLS_KEY_PATH=/etc/secrets/toss_key/key.pem
-
-      # === Mount Secret Files with custom path ===
-      - '--update-secrets'
-      - 'cert.pem=rankmyluck-mtls-cert:latest:/etc/secrets/toss_cert/cert.pem'
-      - '--update-secrets'
-      - 'key.pem=rankmyluck-mtls-key:latest:/etc/secrets/toss_key/key.pem'
+        TOSS_MTLS_CERT_PATH=/etc/secrets/toss_cert/rankmyluck-mtls-cert,
+        TOSS_MTLS_KEY_PATH=/etc/secrets/toss_key/rankmyluck-mtls-key
 
 substitutions:
   _SERVICE: rank-my-luck
