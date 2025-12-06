@@ -13,7 +13,7 @@ steps:
       - push
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
-  # 3) Deploy to Cloud Run (Secret Volume Mount를 --set-volumes로 정의)
+  # 3) Deploy to Cloud Run (Secret File Mount: 유효한 문자열 Key를 사용하도록 재시도)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -29,16 +29,12 @@ steps:
       - managed
       - '--allow-unauthenticated'
       
-      # ⚠️ 핵심 수정: --set-secrets 대신 --set-volumes 사용
-      # Volume 1: cert (rankmyluck-mtls-cert)
-      - '--set-volumes'
+      # ⚠️ 최종 시도: Secret Key 유효성 검사 오류를 해결하기 위해 Secret 이름의 일부를 Key로 사용
+      # Secret Manager 버전이 아닌, Key의 유효한 이름(rankmyluck-cert, rankmyluck-key)을 사용합니다.
+      - '--set-secrets'
       - |
-        /etc/secrets/toss_cert=secret:rankmyluck-mtls-cert:items=[{key:latest,path:rankmyluck-mtls-cert}]
-      
-      # Volume 2: key (rankmyluck-mtls-key)
-      - '--set-volumes'
-      - |
-        /etc/secrets/toss_key=secret:rankmyluck-mtls-key:items=[{key:latest,path:rankmyluck-mtls-key}]
+        /etc/secrets/toss_cert/rankmyluck-mtls-cert=rankmyluck-mtls-cert:rankmyluck-cert,
+        /etc/secrets/toss_key/rankmyluck-mtls-key=rankmyluck-mtls-key:rankmyluck-key
       
       - '--set-env-vars'
       - |
@@ -64,7 +60,6 @@ substitutions:
   _REPO: containers
   _IMAGE: rank-my-luck
   _REGION: us-central1
-  # Cloud Build 실행 시 반드시 제공되어야 하는 변수들
 timeout: 1200s
 options:
   logging: CLOUD_LOGGING_ONLY
