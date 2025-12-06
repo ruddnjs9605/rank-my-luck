@@ -14,7 +14,7 @@ steps:
       - push
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
-  # 3) Deploy to Cloud Run (Secret File Mount 형식으로 수정)
+  # 3) Deploy to Cloud Run (Secret File Mount 형식, 버전 1 사용)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -29,10 +29,10 @@ steps:
       - '--platform'
       - managed
       - '--allow-unauthenticated'
-      - '--set-secrets' # Secret File Mount: 경로/파일명=Secret:버전
+      - '--set-secrets' # Secret File Mount: 경로/파일명=Secret:1
       - |
-        /etc/secrets/toss_cert/rankmyluck-mtls-cert=rankmyluck-mtls-cert:latest,
-        /etc/secrets/toss_key/rankmyluck-mtls-key=rankmyluck-mtls-key:latest
+        /etc/secrets/toss_cert/rankmyluck-mtls-cert=rankmyluck-mtls-cert:1,
+        /etc/secrets/toss_key/rankmyluck-mtls-key=rankmyluck-mtls-key:1
       - '--set-env-vars'
       - |
         DB_HOST=${_DB_HOST},
