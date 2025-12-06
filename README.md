@@ -66,3 +66,4 @@ Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_cl
 변경한 내역이 많아서 정리 하기 힘듬
 
 CORS_ORIGIN 을 하나로만 저장하기
+재배포 버전 222
