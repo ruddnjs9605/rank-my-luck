@@ -14,7 +14,7 @@ steps:
       - push
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
-  # 3) Deploy to Cloud Run (Secret Volume Mount 설정 추가)
+  # 3) Deploy to Cloud Run (Secret File Mount 형식으로 수정)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -29,10 +29,10 @@ steps:
       - '--platform'
       - managed
       - '--allow-unauthenticated'
-      - '--set-secrets' # Secret Volume Mount를 위한 핵심 추가 부분
+      - '--set-secrets' # Secret File Mount: 경로/파일명=Secret:버전
       - |
-        /etc/secrets/toss_cert=rankmyluck-mtls-cert:latest,
-        /etc/secrets/toss_key=rankmyluck-mtls-key:latest
+        /etc/secrets/toss_cert/rankmyluck-mtls-cert=rankmyluck-mtls-cert:latest,
+        /etc/secrets/toss_key/rankmyluck-mtls-key=rankmyluck-mtls-key:latest
       - '--set-env-vars'
       - |
         DB_HOST=${_DB_HOST},
@@ -57,7 +57,7 @@ substitutions:
   _REPO: containers
   _IMAGE: rank-my-luck
   _REGION: us-central1
-  # 아래 변수들은 Secret Manager에서 값을 가져오거나 Cloud Build 트리거 실행 시 제공되어야 합니다.
+  # Cloud Build 실행 시 반드시 제공되어야 하는 변수들
   # 예시:
   # _DB_HOST: 34.123.34.118
   # _DB_PORT: '5432'
