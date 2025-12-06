@@ -5,28 +5,29 @@ import https from "https";
 import { createDecipheriv } from "crypto";
 import { TossEncryptedPayload, EncryptedField } from "./types.js";
 
-/* -----------------------------------------
- *   1) 토스 API 기본 URL
- * ----------------------------------------- */
+/* --------------------------------------------------------
+ * 1) Toss OAuth2 엔드포인트 (토스 공식 문서 최신 버전)
+ * -------------------------------------------------------- */
+
 const TOKEN_URL =
   process.env.TOSS_TOKEN_URL ||
-  "https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token";
+  "https://partner-api.toss.im/api/v1/apps-in-toss/user/oauth2/generate-token";
 
 const ME_URL =
   process.env.TOSS_ME_URL ||
-  "https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me";
+  "https://partner-api.toss.im/api/v1/apps-in-toss/user/oauth2/login-me";
 
-/* -----------------------------------------
- *   2) AES 복호화 키
- * ----------------------------------------- */
+/* --------------------------------------------------------
+ * 2) AES-GCM 복호화 키
+ * -------------------------------------------------------- */
 const KEY_RAW = process.env.TOSS_DECRYPTION_KEY!;
 const KEY_FORMAT = (process.env.TOSS_KEY_FORMAT || "hex") as "hex" | "base64";
 
-/* -----------------------------------------
- *   3) mTLS 인증서 로딩 (Cloud Run Secret Volume 기준)
- * ----------------------------------------- */
-const CERT_PATH = process.env.TOSS_MTLS_CERT_PATH; 
-const KEY_PATH = process.env.TOSS_MTLS_KEY_PATH;
+/* --------------------------------------------------------
+ * 3) mTLS 인증서 로딩 (Cloud Run Secret Volume)
+ * -------------------------------------------------------- */
+const CERT_PATH = process.env.TOSS_MTLS_CERT_PATH; // ex: /secrets/cert/rankmyluck_public.crt
+const KEY_PATH = process.env.TOSS_MTLS_KEY_PATH;   // ex: /secrets/key/rankmyluck_private.key
 
 let httpsAgent: https.Agent | undefined = undefined;
 
@@ -36,16 +37,20 @@ try {
   const cert = fs.readFileSync(CERT_PATH!);
   const key = fs.readFileSync(KEY_PATH!);
 
-  httpsAgent = new https.Agent({ cert, key });
+  httpsAgent = new https.Agent({
+    cert,
+    key,
+  });
 
   console.log("[TOSS] mTLS httpsAgent initialized");
 } catch (err) {
-  console.error("[TOSS] Failed to load mTLS cert/key:", err);
+  console.error("[TOSS] ERROR loading mTLS files:", err);
 }
 
-/* -----------------------------------------
- *   4) AES 복호화 유틸
- * ----------------------------------------- */
+/* --------------------------------------------------------
+ * 4) AES-GCM 복호화 유틸
+ * -------------------------------------------------------- */
+
 function getKeyBuffer() {
   return KEY_FORMAT === "base64"
     ? Buffer.from(KEY_RAW, "base64")
@@ -64,71 +69,74 @@ function decryptField(field: EncryptedField) {
     decipher.setAAD(aad);
     decipher.setAuthTag(tag);
 
-    const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);
-    return decrypted.toString("utf8");
+    const result = Buffer.concat([decipher.update(data), decipher.final()]);
+    return result.toString("utf8");
   } catch (err) {
     console.error("[TOSS] ERROR decryptField:", err);
     throw err;
   }
 }
 
-/* -----------------------------------------
- *   5) Authorization Code → Access Token
- *   (프론트 camelCase → Toss snake_case)
- * ----------------------------------------- */
+/* --------------------------------------------------------
+ * 5) Authorization Code → Access Token
+ * -------------------------------------------------------- */
+
 export async function exchangeCodeForToken(
   authorizationCode: string,
   referrer?: string | null
 ) {
-  // Toss API는 snake_case 요구
   const body = {
-    authorization_code: authorizationCode,
+    authorization_code: authorizationCode, // ← Toss API는 snake_case 요구
     referrer,
   };
 
   try {
-    console.log("[TOSS] Request → generate-token:", TOKEN_URL, body);
-
+    console.log("[TOSS] Request → generate-token");
     const resp = await axios.post(TOKEN_URL, body, {
       httpsAgent,
-      timeout: 10000,
+      timeout: 10_000,
       headers: { "Content-Type": "application/json; charset=utf-8" },
     });
 
     console.log("[TOSS] Response ← generate-token:", resp.data);
     return resp.data;
   } catch (err: any) {
-    console.error("[TOSS] ERROR ← generate-token:", err?.response?.data || err?.message);
+    console.error(
+      "[TOSS] ERROR generate-token:",
+      err?.response?.data || err?.message
+    );
     throw err;
   }
 }
 
-/* -----------------------------------------
- *   6) accessToken → /login-me
- * ----------------------------------------- */
+/* --------------------------------------------------------
+ * 6) AccessToken → /login-me 요청
+ * -------------------------------------------------------- */
+
 export async function fetchTossMe(
   accessToken: string
 ): Promise<TossEncryptedPayload> {
   try {
-    console.log("[TOSS] Request → /login-me");
+    console.log("[TOSS] Request → login-me");
 
     const resp = await axios.get(ME_URL, {
       httpsAgent,
-      timeout: 10000,
+      timeout: 10_000,
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     console.log("[TOSS] Response ← login-me:", resp.data);
     return resp.data;
   } catch (err: any) {
-    console.error("[TOSS] ERROR ← login-me:", err?.response?.data || err?.message);
+    console.error("[TOSS] ERROR login-me:", err?.response?.data || err?.message);
     throw err;
   }
 }
 
-/* -----------------------------------------
- *   7) payload 복호화
- * ----------------------------------------- */
+/* --------------------------------------------------------
+ * 7) login-me 응답 payload 복호화
+ * -------------------------------------------------------- */
+
 export async function decryptTossUser(payload: TossEncryptedPayload) {
   try {
     const tossUserKey = decryptField(payload.userKey);
