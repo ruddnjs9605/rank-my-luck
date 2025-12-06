@@ -64,3 +64,5 @@ Cloud SQL에 아래 테이블이 필요합니다: `users`, `plays`, `referral_cl
 
 
 변경한 내역이 많아서 정리 하기 힘듬
+
+재변경 후 재 배포
