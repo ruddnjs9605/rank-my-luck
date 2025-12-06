@@ -7,46 +7,32 @@ steps:
       - '--tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
       - server
     id: Build
+
   # 2) Docker Push
   - name: gcr.io/cloud-builders/docker
     args:
       - push
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
-  # 2.5) ⚠️ Secret 설정 초기화 (핵심 추가)
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    entrypoint: gcloud
-    args:
-      - run
-      - services
-      - update
-      - '${_SERVICE}'
-      - '--region'
-      - '${_REGION}'
-      - '--clear-secrets' # 모든 Secret 설정을 명시적으로 제거
-    id: Clear Secrets
-  
-  # 3) Deploy to Cloud Run (Secret Volume Mount를 단순 디렉토리 마운트로 회귀)
+
+  # 3) Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
       - run
       - deploy
       - '${_SERVICE}'
-      - '--image'
-      - >-
-        ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
-      - '--region'
-      - '${_REGION}'
-      - '--platform'
-      - managed
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
       - '--allow-unauthenticated'
-      
-      - '--set-secrets' 
-      - |
-        /etc/secrets/toss_cert=rankmyluck-mtls-cert:1,
-        /etc/secrets/toss_key=rankmyluck-mtls-key:1
-      
+
+      # === Secret 파일 mount ===
+      # Secret Manager에 저장한 파일명이 그대로 mount됨
+      - '--update-secrets=rankmyluck_public.crt=rankmyluck-mtls-cert:1'
+      - '--update-secrets=rankmyluck_private.key=rankmyluck-mtls-key:1'
+
+      # === ENV 설정 ===
       - '--set-env-vars'
       - |
         DB_HOST=${_DB_HOST},
@@ -64,15 +50,19 @@ steps:
         TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
         TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},
         TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH},
-        TOSS_MTLS_CERT_PATH=/etc/secrets/toss_cert/rankmyluck-mtls-cert,
-        TOSS_MTLS_KEY_PATH=/etc/secrets/toss_key/rankmyluck-mtls-key
+        TOSS_MTLS_CERT_PATH=/secrets/rankmyluck_public.crt,
+        TOSS_MTLS_KEY_PATH=/secrets/rankmyluck_private.key
+
 substitutions:
   _SERVICE: rank-my-luck
   _REPO: containers
   _IMAGE: rank-my-luck
   _REGION: us-central1
+
 timeout: 1200s
+
 options:
   logging: CLOUD_LOGGING_ONLY
+
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
