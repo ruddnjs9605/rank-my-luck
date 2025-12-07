@@ -137,19 +137,11 @@ export async function fetchTossMe(
 }
 
 /* --------------------------------------------------------
- * 7) payload 복호화 + appName 검증 (보안 필수)
+ * 7) payload 복호화 + appName 검증제거
  * -------------------------------------------------------- */
 export async function decryptTossUser(payload: TossEncryptedPayload) {
   try {
-    const expectedAppName = process.env.TOSS_APP_NAME; // Cloud Run ENV
-
-    // ⚠️ 보안 검증: 토스에서 내려주는 appName이 내 앱과 일치해야 한다.
-    if (payload.appName !== expectedAppName) {
-      console.error(
-        `[TOSS] ERROR invalid appName: expected=${expectedAppName}, got=${payload.appName}`
-      );
-      throw new Error("INVALID_APP_NAME");
-    }
+    // 🎯 appName 검증 제거됨
 
     const tossUserKey = decryptField(payload.userKey);
     const phone = payload.phone ? decryptField(payload.phone) : null;
@@ -161,3 +153,4 @@ export async function decryptTossUser(payload: TossEncryptedPayload) {
     throw err;
   }
 }
+

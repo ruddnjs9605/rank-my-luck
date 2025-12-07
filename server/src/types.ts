@@ -21,8 +21,8 @@ export interface EncryptedField {
 
 // 토스 /login-me 응답에서 암호화된 전체 payload
 export interface TossEncryptedPayload {
-  appName: string;               // ✅ 추가됨 (필수)
   userKey: EncryptedField;
   phone?: EncryptedField;
   name?: EncryptedField;
 }
+
