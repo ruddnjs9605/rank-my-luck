@@ -899,6 +899,13 @@ router.post("/toss/disconnect", (req, res) => {
 });
 
 
+router.get("/debug/version", (req, res) => {
+  return res.json({
+    version: "2025-12-07-02",   // 날짜 + 카운트로 적어
+  });
+});
+
+
 
 
 export default router;
