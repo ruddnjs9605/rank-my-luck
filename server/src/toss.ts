@@ -40,13 +40,14 @@ try {
   httpsAgent = new https.Agent({
     cert,
     key,
+    rejectUnauthorized: true,  // ★ 추가
+    keepAlive: true,           // ★ Toss가 연결 재사용을 잘 처리함
   });
 
   console.log("[TOSS] mTLS loaded");
 } catch (err) {
   console.error("[TOSS] mTLS load failed:", err);
 }
-
 /* --------------------------------------------------------
  * 4) AES-GCM 공식 예제 방식 복호화
  * -------------------------------------------------------- */
