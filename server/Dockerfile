@@ -1,34 +1,37 @@
-# ---- Build stage ----
+# ================================
+# 1) Build Stage
+# ================================
 FROM node:20 AS builder
 WORKDIR /app
 
-# 1. 의존성 설치 - server 폴더 기준이므로 'server/' prefix 필요 없음
+# package.json & lock 파일 먼저 복사 → 캐시 최적화
 COPY package*.json ./
 RUN npm ci
 
-# 2. 소스 전체 복사 (ts, tsconfig, db 등 전부)
+# 소스 전체 복사
 COPY . .
 
-# 3. 타입스크립트 빌드 (dist 생성)
+# TypeScript 빌드 → dist 생성
 RUN npm run build
 
-# ---- Runtime stage ----
+
+# ================================
+# 2) Runtime Stage
+# ================================
 FROM node:20-slim
 WORKDIR /app
 
-# 환경 변수
 ENV NODE_ENV=production
 
-
-# 4. 실행에 필요한 패키지 설치 (prod only)
-COPY --from=builder /app/package*.json ./
+# Runtime dependencies 설치
+COPY package*.json ./
 RUN npm ci --omit=dev
 
-# 5. 빌드 결과물 복사
+# 빌드 결과물(dist) 복사
 COPY --from=builder /app/dist ./dist
 
-# (SQLite를 이미지에 포함해 테스트할 경우, server/db 폴더가 있다면 주석 해제)
-COPY --from=builder /app/db ./db
+# (선택) public, db 등 필요한 리소스 복사
+COPY --from=builder /app/public ./public
+# COPY --from=builder /app/db ./db   # 필요하면 활성화
 
-# 6. 서버 실행
 CMD ["node", "dist/index.js"]
