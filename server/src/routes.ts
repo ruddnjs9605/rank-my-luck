@@ -208,13 +208,24 @@ router.post("/auth/toss-login", async (req, res) => {
       hasNickname: Boolean(user!.nickname),
       nickname: user!.nickname,
     });
-  } catch (err: any) {
-    console.error("[LOGIN ERROR]", err);
-    return res.status(500).json({
-      error: "LOGIN_FAIL",
-      detail: err?.message,
-    });
-  }
+  } catch (e: any) {
+  console.error("===== TOSS LOGIN ERROR DETAIL =====");
+  console.error("message:", e?.message);
+  console.error("code:", e?.code);
+  console.error("errno:", e?.errno);
+  console.error("syscall:", e?.syscall);
+  console.error("hostname:", e?.hostname);
+  console.error("response status:", e?.response?.status);
+  console.error("response data:", e?.response?.data);
+  console.error("stack:", e?.stack);
+  console.error("====================================");
+
+  return res.status(500).json({
+    error: "TOSS_LOGIN_FAIL",
+    message: e?.message,
+  });
+}
+
 });
 
 
