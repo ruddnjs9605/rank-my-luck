@@ -23,13 +23,16 @@ steps:
       - deploy
       - '${_SERVICE}'
       - '--image'
-      - >-
         ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
       - '--region'
-      - '${_REGION}'
+        ${_REGION}
       - '--platform'
-      - managed
+        managed
       - '--allow-unauthenticated'
+
+      # -------------------------------
+      # ⛳ Cloud Run 환경변수 설정
+      # -------------------------------
       - '--set-env-vars'
       - |
         DB_HOST=${_DB_HOST},
@@ -40,18 +43,31 @@ steps:
         DB_SSL=${_DB_SSL},
         CORS_ORIGIN=${_CORS_ORIGIN},
         ADMIN_TOKEN=${_ADMIN_TOKEN},
+
+        # 개발모드 off
         USE_DEV_FALLBACK=0,
         PAYOUT_SIMULATE=0,
-        TOSS_DECRYPTION_KEY=${_TOSS_DECRYPTION_KEY},
-        TOSS_KEY_FORMAT=${_TOSS_KEY_FORMAT},
-        TOSS_MTLS_CERT_PATH=/secrets/cert/rankmyluck_public.crt,
-        TOSS_MTLS_KEY_PATH=/secrets/key/rankmyluck_private.key,
-        TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
-        TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},
-        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH},
+
+        # Toss OAuth 주요 ENV
+        TOSS_APP_NAME=${_TOSS_APP_NAME},
+        TOSS_CLIENT_ID=${_TOSS_APP_NAME},
+
         TOSS_TOKEN_URL=${_TOSS_TOKEN_URL},
         TOSS_ME_URL=${_TOSS_ME_URL},
-        TOSS_CLIENT_ID=${_TOSS_CLIENT_ID}
+
+        TOSS_DECRYPTION_KEY=${_TOSS_DECRYPTION_KEY},
+        TOSS_KEY_FORMAT=${_TOSS_KEY_FORMAT},
+
+        # mTLS 인증서 경로 (Secret Volume)
+        TOSS_MTLS_CERT_PATH=/secrets/cert/rankmyluck_public.crt,
+        TOSS_MTLS_KEY_PATH=/secrets/key/rankmyluck_private.key,
+
+        # Toss promotion
+        TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
+        TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},
+
+        # Toss disconnect callback
+        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH}
 
 substitutions:
   _SERVICE: rank-my-luck
@@ -59,12 +75,12 @@ substitutions:
   _IMAGE: rank-my-luck
   _REGION: us-central1
 
-  # Toss OAuth URL (정확한 최신 엔드포인트)
-  _TOSS_TOKEN_URL: https://apps-in-toss-api.toss.im/api-partner/v1/token
-  _TOSS_ME_URL: https://apps-in-toss-api.toss.im/api-partner/v1/user/me
+  # Toss APP 이름
+  _TOSS_APP_NAME: rankmyluck
 
-  # 앱 ID (가장 중요)
-  _TOSS_CLIENT_ID: rankmyluck
+  # Toss OAuth 최신 엔드포인트
+  _TOSS_TOKEN_URL: https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token
+  _TOSS_ME_URL: https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me
 
 timeout: 1200s
 

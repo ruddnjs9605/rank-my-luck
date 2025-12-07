@@ -6,15 +6,15 @@ import { createDecipheriv } from "crypto";
 import { TossEncryptedPayload, EncryptedField } from "./types.js";
 
 /* --------------------------------------------------------
- * 1) Toss OAuth2 엔드포인트 (토스 공식 최신 버전)
+ * 1) Toss OAuth2 엔드포인트 (Apps-in-Toss 최신 기준)
  * -------------------------------------------------------- */
 const TOKEN_URL =
   process.env.TOSS_TOKEN_URL ||
-  "https://partner-api.toss.im/api/v1/apps-in-toss/user/oauth2/generate-token";
+  "https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token";
 
 const ME_URL =
   process.env.TOSS_ME_URL ||
-  "https://partner-api.toss.im/api/v1/apps-in-toss/user/oauth2/login-me";
+  "https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me";
 
 /* --------------------------------------------------------
  * 2) AES-GCM 복호화 키
@@ -25,8 +25,8 @@ const KEY_FORMAT = (process.env.TOSS_KEY_FORMAT || "hex") as "hex" | "base64";
 /* --------------------------------------------------------
  * 3) mTLS 인증서 로딩 (Cloud Run Secret Volume)
  * -------------------------------------------------------- */
-const CERT_PATH = process.env.TOSS_MTLS_CERT_PATH; // ex: /secrets/cert/rankmyluck_public.crt
-const KEY_PATH = process.env.TOSS_MTLS_KEY_PATH;   // ex: /secrets/key/rankmyluck_private.key
+const CERT_PATH = process.env.TOSS_MTLS_CERT_PATH;
+const KEY_PATH = process.env.TOSS_MTLS_KEY_PATH;
 
 let httpsAgent: https.Agent | undefined = undefined;
 
@@ -83,12 +83,14 @@ export async function exchangeCodeForToken(
   referrer?: string | null
 ) {
   const body = {
-    authorization_code: authorizationCode, // Toss는 snake_case 요구
+    // Apps-in-Toss 최신 문서: camelCase + clientId(appName)
+    authorizationCode,
+    clientId: process.env.TOSS_APP_NAME, // ex: rankmyluck
     referrer,
   };
 
   try {
-    console.log("[TOSS] Request → generate-token:", TOKEN_URL);
+    console.log("[TOSS] Request → generate-token:", TOKEN_URL, body);
 
     const resp = await axios.post(TOKEN_URL, body, {
       httpsAgent,
@@ -110,7 +112,7 @@ export async function exchangeCodeForToken(
 }
 
 /* --------------------------------------------------------
- * 6) Access Token → Toss /login-me
+ * 6) Access Token → /login-me 호출
  * -------------------------------------------------------- */
 export async function fetchTossMe(
   accessToken: string
@@ -135,13 +137,13 @@ export async function fetchTossMe(
 }
 
 /* --------------------------------------------------------
- * 7) login-me 응답 payload 복호화 + appName 검증
+ * 7) payload 복호화 + appName 검증 (보안 필수)
  * -------------------------------------------------------- */
 export async function decryptTossUser(payload: TossEncryptedPayload) {
   try {
-    // 🔥 appName 체크 (필수)
-    const expectedAppName = process.env.TOSS_APP_NAME; // ex: rankmyluck
+    const expectedAppName = process.env.TOSS_APP_NAME; // Cloud Run ENV
 
+    // ⚠️ 보안 검증: 토스에서 내려주는 appName이 내 앱과 일치해야 한다.
     if (payload.appName !== expectedAppName) {
       console.error(
         `[TOSS] ERROR invalid appName: expected=${expectedAppName}, got=${payload.appName}`
@@ -149,7 +151,6 @@ export async function decryptTossUser(payload: TossEncryptedPayload) {
       throw new Error("INVALID_APP_NAME");
     }
 
-    // 사용자 정보 복호화
     const tossUserKey = decryptField(payload.userKey);
     const phone = payload.phone ? decryptField(payload.phone) : null;
     const name = payload.name ? decryptField(payload.name) : null;

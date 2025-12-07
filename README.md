@@ -29,6 +29,7 @@ TOSS_TOKEN_URL=https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user
 TOSS_ME_URL=https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me
 TOSS_DECRYPTION_KEY=...
 TOSS_KEY_FORMAT=hex
+TOSS_APP_NAME=rankmyluck
 TOSS_PROMOTION_CODE=...      # 선택
 TOSS_PROMOTION_ACCESS_TOKEN=... # 선택
 TOSS_DISCONNECT_BASIC_AUTH=Basic ...
@@ -74,5 +75,4 @@ CORS_ORIGIN 을 하나로만 저장하기
 toss.ts 수정
 오늘의 마지막 도전1
 실패
-
 
