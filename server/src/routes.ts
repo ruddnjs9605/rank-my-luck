@@ -154,48 +154,37 @@ async function getCurrentUser(req: Request): Promise<UserRow> {
 // ============================================================
 router.post("/auth/toss-login", async (req, res) => {
   try {
-    const { authorizationCode, referrer } = req.body as {
-      authorizationCode?: string;
-      referrer?: string | null;
-    };
+    const { authorizationCode, referrer } = req.body;
 
     if (!authorizationCode) {
-      return res
-        .status(400)
-        .json({ error: "NO_CODE", message: "authorizationCode가 필요합니다." });
+      return res.status(400).json({ error: "NO_CODE" });
     }
 
-    // 1) Authorization Code -> Access Token
-    const tokenResp = await exchangeCodeForToken(authorizationCode, referrer ?? null);
+    // 1) Code → Access Token
+    const tokenResp = await exchangeCodeForToken(authorizationCode, referrer);
     const accessToken =
-      (tokenResp as any).accessToken ||
-      (tokenResp as any).access_token;
+      tokenResp.accessToken || tokenResp.access_token;
 
-    if (!accessToken) {
-      return res.status(500).json({
-        error: "NO_ACCESS_TOKEN",
-        message: "토스 accessToken 획득 실패",
-      });
-    }
+    if (!accessToken)
+      return res.status(500).json({ error: "TOKEN_MISSING" });
 
-    // 2) /me 호출 → 암호화 payload 획득
-    const encrypted: TossEncryptedPayload = await fetchTossMe(accessToken);   // ⭐ 타입 적용됨
+    // 2) login-me (암호화 payload 획득)
+    const encrypted: TossEncryptedPayload = await fetchTossMe(accessToken);
 
-    // 3) 복호화 → tossUserKey 획득
-    const dec = await decryptTossUser(encrypted);
+    // 3) 복호화
+    const dec = decryptTossUser(encrypted);
     const tossUserKey = dec.tossUserKey;
 
-    // 4) DB에서 찾기
+    // 4) DB 조회 또는 생성
     let user = await get<UserRow>(
       `SELECT * FROM users WHERE toss_user_key = ?`,
       [tossUserKey]
     );
 
-    // 5) 없으면 신규 생성
     if (!user) {
       await run(
-        `INSERT INTO users (nickname, toss_user_key, best_prob, coins, referral_points)
-         VALUES (NULL, ?, NULL, 40, 0)`,
+        `INSERT INTO users (nickname, toss_user_key, best_prob, coins)
+         VALUES (NULL, ?, NULL, 40)`,
         [tossUserKey]
       );
       user = await get<UserRow>(
@@ -204,42 +193,30 @@ router.post("/auth/toss-login", async (req, res) => {
       );
     }
 
-    // 6) 쿠키 발급
+    // 5) 쿠키 저장
     const isProd = process.env.NODE_ENV === "production";
     res.cookie("uid", String(user!.id), {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? "none" : "lax",
       path: "/",
-      maxAge: 1000 * 60 * 60 * 24 * 30, // 30일
+      maxAge: 1000 * 60 * 60 * 24 * 30,
     });
 
-    // 7) 응답
     return res.json({
       ok: true,
       hasNickname: Boolean(user!.nickname),
       nickname: user!.nickname,
     });
-  } catch (e: any) {
-    // 여기 디버그 로그를 자세히!
-    console.error("toss-login error raw:", {
-      message: e?.message,
-      code: e?.code,
-      errno: e?.errno,
-      syscall: e?.syscall,
-      hostname: e?.hostname,
-      // TLS 에러면 대부분 여기까지 나오고,
-      // HTTP 400/401 이면 response 쪽이 채워져요.
-      responseStatus: e?.response?.status,
-      responseData: e?.response?.data,
-    });
-
+  } catch (err: any) {
+    console.error("[LOGIN ERROR]", err);
     return res.status(500).json({
-      error: "TOSS_LOGIN_FAIL",
-      message: e?.message || String(e),
+      error: "LOGIN_FAIL",
+      detail: err?.message,
     });
   }
 });
+
 
 // ============================================================
 // 1) 내 정보 조회

@@ -13,16 +13,15 @@ export type UserRow = {
 
 // 토스 암호화 필드 1개 (AES-GCM)
 export interface EncryptedField {
-  iv: string;   // base64
-  aad: string;  // base64
-  data: string; // base64
-  tag: string;  // base64
+  iv: string;
+  aad: string;
+  data: string;
+  tag: string;
 }
 
-// 토스 /login-me 응답에서 암호화된 전체 payload
+// Toss login-me response (공식 예제와 동일)
 export interface TossEncryptedPayload {
   userKey: EncryptedField;
-  phone?: EncryptedField;
   name?: EncryptedField;
+  phone?: EncryptedField;
 }
-

@@ -3,10 +3,10 @@ import axios from "axios";
 import fs from "fs";
 import https from "https";
 import { createDecipheriv } from "crypto";
-import { TossEncryptedPayload, EncryptedField } from "./types.js";
+import type { EncryptedField, TossEncryptedPayload } from "./types.js";
 
 /* --------------------------------------------------------
- * 1) Toss OAuth2 엔드포인트 (Apps-in-Toss 최신 기준)
+ * 1) Toss OAuth2 엔드포인트
  * -------------------------------------------------------- */
 const TOKEN_URL =
   process.env.TOSS_TOKEN_URL ||
@@ -22,56 +22,51 @@ const ME_URL =
 const KEY_RAW = process.env.TOSS_DECRYPTION_KEY!;
 const KEY_FORMAT = (process.env.TOSS_KEY_FORMAT || "hex") as "hex" | "base64";
 
-/* --------------------------------------------------------
- * 3) mTLS 인증서 로딩 (Cloud Run Secret Volume)
- * -------------------------------------------------------- */
-const CERT_PATH = process.env.TOSS_MTLS_CERT_PATH;
-const KEY_PATH = process.env.TOSS_MTLS_KEY_PATH;
-
-let httpsAgent: https.Agent | undefined = undefined;
-
-try {
-  console.log("[TOSS] Loading mTLS cert/key:", CERT_PATH, KEY_PATH);
-
-  const cert = fs.readFileSync(CERT_PATH!);
-  const key = fs.readFileSync(KEY_PATH!);
-
-  httpsAgent = new https.Agent({
-    cert,
-    key,
-  });
-
-  console.log("[TOSS] mTLS httpsAgent initialized");
-} catch (err) {
-  console.error("[TOSS] ERROR loading mTLS files:", err);
-}
-
-/* --------------------------------------------------------
- * 4) AES-GCM 복호화 유틸
- * -------------------------------------------------------- */
 function getKeyBuffer() {
   return KEY_FORMAT === "base64"
     ? Buffer.from(KEY_RAW, "base64")
     : Buffer.from(KEY_RAW, "hex");
 }
 
-function decryptField(field: EncryptedField) {
-  try {
-    const key = getKeyBuffer();
-    const iv = Buffer.from(field.iv, "base64");
-    const aad = Buffer.from(field.aad, "base64");
-    const data = Buffer.from(field.data, "base64");
-    const tag = Buffer.from(field.tag, "base64");
+/* --------------------------------------------------------
+ * 3) mTLS 인증서 로딩
+ * -------------------------------------------------------- */
+let httpsAgent: https.Agent | undefined = undefined;
 
+try {
+  const cert = fs.readFileSync(process.env.TOSS_MTLS_CERT_PATH!);
+  const key = fs.readFileSync(process.env.TOSS_MTLS_KEY_PATH!);
+
+  httpsAgent = new https.Agent({
+    cert,
+    key,
+  });
+
+  console.log("[TOSS] mTLS loaded");
+} catch (err) {
+  console.error("[TOSS] mTLS load failed:", err);
+}
+
+/* --------------------------------------------------------
+ * 4) AES-GCM 공식 예제 방식 복호화
+ * -------------------------------------------------------- */
+export function decryptField(field: EncryptedField): string {
+  const key = getKeyBuffer();
+  const iv = Buffer.from(field.iv, "base64");
+  const aad = Buffer.from(field.aad, "base64");
+  const data = Buffer.from(field.data, "base64");
+  const tag = Buffer.from(field.tag, "base64");
+
+  try {
     const decipher = createDecipheriv("aes-256-gcm", key, iv);
     decipher.setAAD(aad);
     decipher.setAuthTag(tag);
 
-    const result = Buffer.concat([decipher.update(data), decipher.final()]);
-    return result.toString("utf8");
+    const decrypted = Buffer.concat([decipher.update(data), decipher.final()]);
+    return decrypted.toString("utf8");
   } catch (err) {
-    console.error("[TOSS] ERROR decryptField:", err);
-    throw err;
+    console.error("[TOSS] decrypt error:", err);
+    throw new Error("DECRYPT_FAIL");
   }
 }
 
@@ -83,74 +78,57 @@ export async function exchangeCodeForToken(
   referrer?: string | null
 ) {
   const body = {
-    // Apps-in-Toss 최신 문서: camelCase + clientId(appName)
     authorizationCode,
-    clientId: process.env.TOSS_APP_NAME, // ex: rankmyluck
+    clientId: process.env.TOSS_APP_NAME,
     referrer,
   };
 
   try {
-    console.log("[TOSS] Request → generate-token:", TOKEN_URL, body);
+    console.log("[TOSS] generate-token →", body);
 
     const resp = await axios.post(TOKEN_URL, body, {
       httpsAgent,
-      timeout: 10_000,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-      },
+      timeout: 10000,
+      headers: { "Content-Type": "application/json" },
     });
 
-    console.log("[TOSS] Response ← generate-token:", resp.data);
+    console.log("[TOSS] generate-token success:", resp.data);
     return resp.data;
   } catch (err: any) {
-    console.error(
-      "[TOSS] ERROR generate-token:",
-      err?.response?.data || err?.message
-    );
-    throw err;
+    console.error("[TOSS] generate-token FAIL:", err?.response?.data || err);
+    throw new Error("TOKEN_FAIL");
   }
 }
 
 /* --------------------------------------------------------
- * 6) Access Token → /login-me 호출
+ * 6) Access Token → login-me
  * -------------------------------------------------------- */
 export async function fetchTossMe(
   accessToken: string
 ): Promise<TossEncryptedPayload> {
   try {
-    console.log("[TOSS] Request → login-me:", ME_URL);
-
     const resp = await axios.get(ME_URL, {
       httpsAgent,
-      timeout: 10_000,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+      timeout: 10000,
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    console.log("[TOSS] Response ← login-me:", resp.data);
+    console.log("[TOSS] login-me success:", resp.data);
     return resp.data;
   } catch (err: any) {
-    console.error("[TOSS] ERROR login-me:", err?.response?.data || err?.message);
-    throw err;
+    console.error("[TOSS] login-me FAIL:", err?.response?.data || err);
+    throw new Error("LOGIN_ME_FAIL");
   }
 }
 
 /* --------------------------------------------------------
- * 7) payload 복호화 + appName 검증제거
+ * 7) 암호화된 payload → 복호화
  * -------------------------------------------------------- */
-export async function decryptTossUser(payload: TossEncryptedPayload) {
-  try {
-    // 🎯 appName 검증 제거됨
+export function decryptTossUser(payload: TossEncryptedPayload) {
+  // ❗ 공식 예제 기준으로 appName 검증 없음 → 제거
+  const tossUserKey = decryptField(payload.userKey);
+  const name = payload.name ? decryptField(payload.name) : null;
+  const phone = payload.phone ? decryptField(payload.phone) : null;
 
-    const tossUserKey = decryptField(payload.userKey);
-    const phone = payload.phone ? decryptField(payload.phone) : null;
-    const name = payload.name ? decryptField(payload.name) : null;
-
-    return { tossUserKey, phone, name };
-  } catch (err) {
-    console.error("[TOSS] ERROR decryptTossUser:", err);
-    throw err;
-  }
+  return { tossUserKey, name, phone };
 }
-
