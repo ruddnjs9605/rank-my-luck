@@ -1,18 +1,18 @@
 steps:
-  # 1) Docker Build (repo root 기준)
+  # 1) Docker Build
   - name: gcr.io/cloud-builders/docker
     args:
       - build
-      - '--file=Dockerfile'
-      - '--tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
-      - '.'
+      - --file=server/Dockerfile
+      - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
+      - server
     id: Build
 
   # 2) Docker Push
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
     id: Docker Push
 
   # 3) Deploy to Cloud Run
@@ -21,12 +21,12 @@ steps:
     args:
       - run
       - deploy
-      - '${_SERVICE}'
-      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
-      - '--region=${_REGION}'
-      - '--platform=managed'
-      - '--allow-unauthenticated'
-      - '--set-env-vars'
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --set-env-vars
       - |
         DB_HOST=${_DB_HOST},
         DB_PORT=${_DB_PORT},
@@ -55,6 +55,7 @@ substitutions:
   _REPO: containers
   _IMAGE: rank-my-luck
   _REGION: us-central1
+
   _TOSS_APP_NAME: rankmyluck
   _TOSS_TOKEN_URL: https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token
   _TOSS_ME_URL: https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me
@@ -65,4 +66,4 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 images:
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
