@@ -1,11 +1,12 @@
 // server/src/routes.ts
 import { Router, type Request } from "express";
 import { get, all, run, one, query, exec } from "./db.js";
-import type { UserRow } from "./types.js";
+import type { UserRow, TossEncryptedPayload } from "./types.js";   // ⭐ 추가됨
 import { decryptTossUser, exchangeCodeForToken, fetchTossMe } from "./toss.js";
 import axios from "axios";
 
 const router = Router();
+
 
 // 광고 보상/추천인 중복 방지용 간단한 메모리 캐시
 const usedRewardKeys = new Set<string>();
@@ -178,7 +179,7 @@ router.post("/auth/toss-login", async (req, res) => {
     }
 
     // 2) /me 호출 → 암호화 payload 획득
-    const encrypted = await fetchTossMe(accessToken);
+    const encrypted: TossEncryptedPayload = await fetchTossMe(accessToken);   // ⭐ 타입 적용됨
 
     // 3) 복호화 → tossUserKey 획득
     const dec = await decryptTossUser(encrypted);

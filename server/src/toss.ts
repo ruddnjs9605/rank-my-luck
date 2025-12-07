@@ -6,9 +6,8 @@ import { createDecipheriv } from "crypto";
 import { TossEncryptedPayload, EncryptedField } from "./types.js";
 
 /* --------------------------------------------------------
- * 1) Toss OAuth2 엔드포인트 (토스 공식 문서 최신 버전)
+ * 1) Toss OAuth2 엔드포인트 (토스 공식 최신 버전)
  * -------------------------------------------------------- */
-
 const TOKEN_URL =
   process.env.TOSS_TOKEN_URL ||
   "https://partner-api.toss.im/api/v1/apps-in-toss/user/oauth2/generate-token";
@@ -50,7 +49,6 @@ try {
 /* --------------------------------------------------------
  * 4) AES-GCM 복호화 유틸
  * -------------------------------------------------------- */
-
 function getKeyBuffer() {
   return KEY_FORMAT === "base64"
     ? Buffer.from(KEY_RAW, "base64")
@@ -80,22 +78,24 @@ function decryptField(field: EncryptedField) {
 /* --------------------------------------------------------
  * 5) Authorization Code → Access Token
  * -------------------------------------------------------- */
-
 export async function exchangeCodeForToken(
   authorizationCode: string,
   referrer?: string | null
 ) {
   const body = {
-    authorization_code: authorizationCode, // ← Toss API는 snake_case 요구
+    authorization_code: authorizationCode, // Toss는 snake_case 요구
     referrer,
   };
 
   try {
-    console.log("[TOSS] Request → generate-token");
+    console.log("[TOSS] Request → generate-token:", TOKEN_URL);
+
     const resp = await axios.post(TOKEN_URL, body, {
       httpsAgent,
       timeout: 10_000,
-      headers: { "Content-Type": "application/json; charset=utf-8" },
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      },
     });
 
     console.log("[TOSS] Response ← generate-token:", resp.data);
@@ -110,19 +110,20 @@ export async function exchangeCodeForToken(
 }
 
 /* --------------------------------------------------------
- * 6) AccessToken → /login-me 요청
+ * 6) Access Token → Toss /login-me
  * -------------------------------------------------------- */
-
 export async function fetchTossMe(
   accessToken: string
 ): Promise<TossEncryptedPayload> {
   try {
-    console.log("[TOSS] Request → login-me");
+    console.log("[TOSS] Request → login-me:", ME_URL);
 
     const resp = await axios.get(ME_URL, {
       httpsAgent,
       timeout: 10_000,
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     });
 
     console.log("[TOSS] Response ← login-me:", resp.data);
@@ -134,11 +135,21 @@ export async function fetchTossMe(
 }
 
 /* --------------------------------------------------------
- * 7) login-me 응답 payload 복호화
+ * 7) login-me 응답 payload 복호화 + appName 검증
  * -------------------------------------------------------- */
-
 export async function decryptTossUser(payload: TossEncryptedPayload) {
   try {
+    // 🔥 appName 체크 (필수)
+    const expectedAppName = process.env.TOSS_APP_NAME; // ex: rankmyluck
+
+    if (payload.appName !== expectedAppName) {
+      console.error(
+        `[TOSS] ERROR invalid appName: expected=${expectedAppName}, got=${payload.appName}`
+      );
+      throw new Error("INVALID_APP_NAME");
+    }
+
+    // 사용자 정보 복호화
     const tossUserKey = decryptField(payload.userKey);
     const phone = payload.phone ? decryptField(payload.phone) : null;
     const name = payload.name ? decryptField(payload.name) : null;

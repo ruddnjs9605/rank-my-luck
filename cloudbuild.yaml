@@ -15,7 +15,7 @@ steps:
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}'
     id: Docker Push
 
-  # 3) Deploy to Cloud Run (ENV만 업데이트하고 secret은 건드리지 않음)
+  # 3) Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -48,13 +48,23 @@ steps:
         TOSS_MTLS_KEY_PATH=/secrets/key/rankmyluck_private.key,
         TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},
         TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},
-        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH}
+        TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH},
+        TOSS_TOKEN_URL=${_TOSS_TOKEN_URL},
+        TOSS_ME_URL=${_TOSS_ME_URL},
+        TOSS_CLIENT_ID=${_TOSS_CLIENT_ID}
 
 substitutions:
   _SERVICE: rank-my-luck
   _REPO: containers
   _IMAGE: rank-my-luck
   _REGION: us-central1
+
+  # Toss OAuth URL (정확한 최신 엔드포인트)
+  _TOSS_TOKEN_URL: https://apps-in-toss-api.toss.im/api-partner/v1/token
+  _TOSS_ME_URL: https://apps-in-toss-api.toss.im/api-partner/v1/user/me
+
+  # 앱 ID (가장 중요)
+  _TOSS_CLIENT_ID: rankmyluck
 
 timeout: 1200s
 
