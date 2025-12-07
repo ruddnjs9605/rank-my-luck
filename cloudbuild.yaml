@@ -1,23 +1,22 @@
 steps:
-  # 1) Docker Build (server 폴더 기준)
+  # 1) Docker Build
   - name: gcr.io/cloud-builders/docker
-    id: Build
     args:
       - build
       - --file=server/Dockerfile
       - --tag=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
       - server
+    id: Build
 
   # 2) Docker Push
   - name: gcr.io/cloud-builders/docker
-    id: Push
     args:
       - push
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:${SHORT_SHA}
+    id: Docker Push
 
-  # 3) Cloud Run Deploy
+  # 3) Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    id: Deploy
     entrypoint: gcloud
     args:
       - run
@@ -27,9 +26,42 @@ steps:
       - --region=${_REGION}
       - --platform=managed
       - --allow-unauthenticated
-      - --set-env-vars=DB_HOST=${_DB_HOST},DB_PORT=${_DB_PORT},DB_USER=${_DB_USER},DB_PASS=${_DB_PASS},DB_NAME=${_DB_NAME},DB_SSL=${_DB_SSL},CORS_ORIGIN=${_CORS_ORIGIN},ADMIN_TOKEN=${_ADMIN_TOKEN},USE_DEV_FALLBACK=0,PAYOUT_SIMULATE=0,TOSS_APP_NAME=${_TOSS_APP_NAME},TOSS_CLIENT_ID=${_TOSS_CLIENT_ID},TOSS_TOKEN_URL=${_TOSS_TOKEN_URL},TOSS_ME_URL=${_TOSS_ME_URL},TOSS_DECRYPTION_KEY=${_TOSS_DECRYPTION_KEY},TOSS_KEY_FORMAT=${_TOSS_KEY_FORMAT},TOSS_MTLS_CERT_PATH=/secrets/cert/rankmyluck_public.crt,TOSS_MTLS_KEY_PATH=/secrets/key/rankmyluck_private.key,TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE},TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN},TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH}
-      - --set-secrets=/secrets/cert/rankmyluck_public.crt=rankmyluck-public-cert:latest
-      - --set-secrets=/secrets/key/rankmyluck_private.key=rankmyluck-private-key:latest
+
+      # ---- Secrets Mounting (정확히 네 secret 이름으로 수정됨) ----
+      - --update-secrets=/secrets/cert/rankmyluck_public.crt=rankmyluck-mtls-cert:latest
+      - --update-secrets=/secrets/key/rankmyluck_private.key=rankmyluck-mtls-key:latest
+
+      # ---- ENV ----
+      - --set-env-vars=DB_HOST=${_DB_HOST}
+      - --set-env-vars=DB_PORT=${_DB_PORT}
+      - --set-env-vars=DB_USER=${_DB_USER}
+      - --set-env-vars=DB_PASS=${_DB_PASS}
+      - --set-env-vars=DB_NAME=${_DB_NAME}
+      - --set-env-vars=DB_SSL=${_DB_SSL}
+      - --set-env-vars=CORS_ORIGIN=${_CORS_ORIGIN}
+      - --set-env-vars=ADMIN_TOKEN=${_ADMIN_TOKEN}
+      - --set-env-vars=USE_DEV_FALLBACK=0
+      - --set-env-vars=PAYOUT_SIMULATE=0
+
+      # Toss app envs
+      - --set-env-vars=TOSS_APP_NAME=${_TOSS_APP_NAME}
+      - --set-env-vars=TOSS_CLIENT_ID=${_TOSS_APP_NAME}
+      - --set-env-vars=TOSS_TOKEN_URL=${_TOSS_TOKEN_URL}
+      - --set-env-vars=TOSS_ME_URL=${_TOSS_ME_URL}
+      - --set-env-vars=TOSS_DECRYPTION_KEY=${_TOSS_DECRYPTION_KEY}
+      - --set-env-vars=TOSS_KEY_FORMAT=${_TOSS_KEY_FORMAT}
+
+      # mTLS Cert/Key 경로 (컨테이너 내부 경로로 정확히 지정)
+      - --set-env-vars=TOSS_MTLS_CERT_PATH=/secrets/cert/rankmyluck_public.crt
+      - --set-env-vars=TOSS_MTLS_KEY_PATH=/secrets/key/rankmyluck_private.key
+
+      # Promo API
+      - --set-env-vars=TOSS_PROMOTION_CODE=${_TOSS_PROMOTION_CODE}
+      - --set-env-vars=TOSS_PROMOTION_ACCESS_TOKEN=${_TOSS_PROMOTION_ACCESS_TOKEN}
+
+      # Disconnect callback
+      - --set-env-vars=TOSS_DISCONNECT_BASIC_AUTH=${_TOSS_DISCONNECT_BASIC_AUTH}
+
 
 substitutions:
   _SERVICE: rank-my-luck
@@ -37,12 +69,11 @@ substitutions:
   _IMAGE: rank-my-luck
   _REGION: us-central1
 
-  # Toss values
   _TOSS_APP_NAME: rankmyluck
-  _TOSS_CLIENT_ID: rankmyluck
-
   _TOSS_TOKEN_URL: https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/generate-token
   _TOSS_ME_URL: https://apps-in-toss-api.toss.im/api-partner/v1/apps-in-toss/user/oauth2/login-me
+
+timeout: 1200s
 
 options:
   logging: CLOUD_LOGGING_ONLY
